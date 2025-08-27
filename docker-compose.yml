@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: minio_mars
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=password
+      - MINIO_DOMAIN=storage
+      - MINIO_REGION_NAME=us-east-1
+      - MINIO_REGION=us-east-1
+    ports:
+      - 9001:9001
+      - 9000:9000
+    command: ["server", "/data", "--console-address", ":9001"]
+    volumes:
+      - minio_data:/data
+    networks:
+      - default
+
+  airflow-webserver:
+    build: .
+    container_name: airflow_webserver_mars
+    environment: &airflow-common-env
+      AIRFLOW__CORE__EXECUTOR: SequentialExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/airflow.db
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+      AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
+      _AIRFLOW_DB_MIGRATE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_USERNAME: admin
+      _AIRFLOW_WWW_USER_PASSWORD: admin
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - airflow_db:/opt/airflow
+      - ./.env:/opt/airflow/.env
+    ports:
+      - "8080:8080"
+    command: >
+      bash -c "
+        airflow db init &&
+        airflow users create \
+          --username admin \
+          --firstname Airflow \
+          --lastname Admin \
+          --role Admin \
+          --email admin@example.com \
+          --password admin || true &&
+        airflow webserver
+      "
+    restart: always
+
+  airflow-scheduler:
+    build: .
+    container_name: airflow_scheduler_mars
+    environment: *airflow-common-env
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - airflow_db:/opt/airflow
+      - ./.env:/opt/airflow/.env
+    command: airflow scheduler
+    restart: always
+
+volumes:
+  minio_data:
+  airflow_db:
