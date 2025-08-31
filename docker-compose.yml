@@ -1,5 +1,25 @@
 version: '3.8'
 
+x-airflow-common:
+  &airflow-common
+  build: .  # This points to the current directory (project root)
+  environment:
+    &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
+    AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+    AIRFLOW__CORE__FERNET_KEY: 'QkQwQk1wQ2JwQ2h0b2JwQ2h0b2JwQ2h0b2JwQ2h0b2I='
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./logs:/opt/airflow/logs
+  depends_on: &airflow-common-depends-on
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
 services:
   minio:
     image: minio/minio:latest
@@ -11,61 +31,113 @@ services:
       - MINIO_REGION_NAME=us-east-1
       - MINIO_REGION=us-east-1
     ports:
-      - 9001:9001
-      - 9000:9000
+      - "9001:9001"
+      - "9000:9000"
     command: ["server", "/data", "--console-address", ":9001"]
     volumes:
       - minio_data:/data
     networks:
       - default
 
-  airflow-webserver:
-    build: .
-    container_name: airflow_webserver_mars
-    environment: &airflow-common-env
-      AIRFLOW__CORE__EXECUTOR: SequentialExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/airflow.db
-      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
-      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
-      AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
-      _AIRFLOW_DB_MIGRATE: "true"
-      _AIRFLOW_WWW_USER_CREATE: "true"
-      _AIRFLOW_WWW_USER_USERNAME: admin
-      _AIRFLOW_WWW_USER_PASSWORD: admin
+  postgres:
+    image: postgres:13
+    container_name: airflow_postgres_mars
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
     volumes:
-      - ./dags:/opt/airflow/dags
-      - ./logs:/opt/airflow/logs
-      - airflow_db:/opt/airflow
-      - ./.env:/opt/airflow/.env
-    ports:
-      - "8080:8080"
-    command: >
-      bash -c "
-        airflow db init &&
-        airflow users create \
-          --username admin \
-          --firstname Airflow \
-          --lastname Admin \
-          --role Admin \
-          --email admin@example.com \
-          --password admin || true &&
-        airflow webserver
-      "
+      - postgres-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
     restart: always
 
-  airflow-scheduler:
-    build: .
-    container_name: airflow_scheduler_mars
-    environment: *airflow-common-env
-    volumes:
-      - ./dags:/opt/airflow/dags
-      - ./logs:/opt/airflow/logs
-      - airflow_db:/opt/airflow
-      - ./.env:/opt/airflow/.env
-    command: airflow scheduler
+  redis:
+    image: redis:7.2-bookworm
+    container_name: airflow_redis_mars
+    expose:
+      - 6379
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 30s
+      retries: 50
+      start_period: 30s
     restart: always
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: airflow_webserver_mars
+    command: api-server
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/monitor/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: airflow_scheduler_mars
+    command: scheduler
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-worker:
+    <<: *airflow-common
+    container_name: airflow_worker_mars
+    command: celery worker
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-init:
+    <<: *airflow-common
+    container_name: airflow_init_mars
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        mkdir -p /opt/airflow/logs /opt/airflow/dags
+        /entrypoint airflow db migrate
+        echo "Database initialized successfully"
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_MIGRATE: 'true'
+      # Configure Simple Auth Manager with static password
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: "admin:admin"
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USE_BUILTIN_PASSWORD: 'false'
+    user: "0:0"
+    depends_on:
+      <<: *airflow-common-depends-on
+
+  flower:
+    <<: *airflow-common
+    container_name: airflow_flower_mars
+    command: celery flower
+    ports:
+      - "5555:5555"
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
 
 volumes:
   minio_data:
-  airflow_db:
+  postgres-db-volume:
