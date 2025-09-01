@@ -26,29 +26,25 @@ services:
   kafka:
     image: confluentinc/cp-kafka:latest
     container_name: kafka_mars
-    user: "0:0"  # Run as root to avoid permission issues
+    user: "0:0"
     ports:
       - "9092:9092"
       - "19092:19092"
     environment:
-      # KRaft mode configuration (no Zookeeper needed)
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_NODE_ID: 1
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      # Listener configuration
       KAFKA_LISTENERS: PLAINTEXT://kafka:9092,CONTROLLER://kafka:29093,EXTERNAL://kafka:19092
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:19092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      # Topic and replication settings
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
       KAFKA_DEFAULT_REPLICATION_FACTOR: 1
       KAFKA_NUM_PARTITIONS: 3
-      # Cluster and log settings - use /var/lib/kafka instead of /tmp
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
     volumes:
@@ -76,7 +72,6 @@ services:
       - MINIO_DOMAIN=storage
       - MINIO_REGION_NAME=us-east-1
       - MINIO_REGION=us-east-1
-      # Enable MinIO event notifications (for Kafka integration)
       - MINIO_NOTIFY_KAFKA_ENABLE=on
       - MINIO_NOTIFY_KAFKA_BROKERS=kafka:9092
     ports:
@@ -147,7 +142,6 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
-  # Add triggerer service for asset watchers
   airflow-triggerer:
     <<: *airflow-common
     container_name: airflow_triggerer_mars
@@ -181,7 +175,6 @@ services:
     environment:
       <<: *airflow-common-env
       _AIRFLOW_DB_MIGRATE: 'true'
-      # Configure Simple Auth Manager with static password
       AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: "admin:admin"
       AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USE_BUILTIN_PASSWORD: 'false'
     user: "0:0"
@@ -200,7 +193,33 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
+  cubejs:
+    image: cubejs/cube:latest
+    container_name: cube_mars
+    ports:
+      - "4000:4000"
+      - "15432:15432"
+    env_file:
+      - .env
+    volumes:
+      - .:/cube/conf
+    depends_on:
+      - postgres
+    restart: always
+
+  metabase:
+    image: metabase/metabase:latest
+    container_name: metabase_mars
+    ports:
+      - "3000:3000"
+    environment:
+      MB_DB_FILE: /metabase-data/metabase.db
+    volumes:
+      - metabase-data:/metabase-data
+    restart: always
+
 volumes:
   minio_data:
   postgres-db-volume:
   kafka_data:
+  metabase-data:
