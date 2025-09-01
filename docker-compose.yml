@@ -19,8 +19,54 @@ x-airflow-common:
       condition: service_healthy
     redis:
       condition: service_healthy
+    kafka:
+      condition: service_healthy
 
 services:
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka_mars
+    user: "0:0"  # Run as root to avoid permission issues
+    ports:
+      - "9092:9092"
+      - "19092:19092"
+    environment:
+      # KRaft mode configuration (no Zookeeper needed)
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_NODE_ID: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      # Listener configuration
+      KAFKA_LISTENERS: PLAINTEXT://kafka:9092,CONTROLLER://kafka:29093,EXTERNAL://kafka:19092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      # Topic and replication settings
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_NUM_PARTITIONS: 3
+      # Cluster and log settings - use /var/lib/kafka instead of /tmp
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    command: >
+      sh -c "
+      mkdir -p /var/lib/kafka/data &&
+      kafka-storage format -t $${CLUSTER_ID} -c /etc/kafka/server.properties --ignore-formatted || true &&
+      /etc/confluent/docker/run
+      "
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "kafka:9092", "--list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
+    restart: always
+
   minio:
     image: minio/minio:latest
     container_name: minio_mars
@@ -30,14 +76,19 @@ services:
       - MINIO_DOMAIN=storage
       - MINIO_REGION_NAME=us-east-1
       - MINIO_REGION=us-east-1
+      # Enable MinIO event notifications (for Kafka integration)
+      - MINIO_NOTIFY_KAFKA_ENABLE=on
+      - MINIO_NOTIFY_KAFKA_BROKERS=kafka:9092
     ports:
       - "9001:9001"
       - "9000:9000"
     command: ["server", "/data", "--console-address", ":9001"]
     volumes:
       - minio_data:/data
-    networks:
-      - default
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: always
 
   postgres:
     image: postgres:13
@@ -96,6 +147,17 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
+  # Add triggerer service for asset watchers
+  airflow-triggerer:
+    <<: *airflow-common
+    container_name: airflow_triggerer_mars
+    command: triggerer
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
   airflow-worker:
     <<: *airflow-common
     container_name: airflow_worker_mars
@@ -141,3 +203,4 @@ services:
 volumes:
   minio_data:
   postgres-db-volume:
+  kafka_data:
