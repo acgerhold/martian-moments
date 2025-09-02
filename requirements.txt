@@ -1,0 +1,2 @@
+apache-airflow-providers-apache-kafka>=1.9.0
+apache-airflow-providers-common-messaging>=1.0.3
