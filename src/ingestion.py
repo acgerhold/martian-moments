@@ -36,4 +36,4 @@ def extract_manifest_from_nasa(rover: str, logger):
         print(f"Error processing manifest request for rover {rover}: {e}")
         logger.error(f"Error processing manifest request for rover {rover}: {e}")
 
-    return manifest_response
+    return manifest_response 
