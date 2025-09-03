@@ -3,4 +3,4 @@ apache-airflow-providers-common-messaging>=1.0.3
 pytest
 minio
 requests
-dotenv
+python-dotenv

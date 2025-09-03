@@ -3,20 +3,27 @@ version: '3.8'
 x-airflow-common:
   &airflow-common
   build: . 
+  env_file:
+    - .env
   environment:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
     AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
-    AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
-    AIRFLOW__CORE__FERNET_KEY: 'QkQwQk1wQ2JwQ2h0b2JwQ2h0b2JwQ2h0b2JwQ2h0b2I='
+    AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: "admin:admin"
     AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USE_BUILTIN_PASSWORD: 'true'
-    AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: 300
+    AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL: 300
     AIRFLOW__CORE__PARALLELISM: 32
     AIRFLOW__CORE__DAG_CONCURRENCY: 16
     AIRFLOW__CORE__MAX_ACTIVE_RUNS_PER_DAG: 16
+    AIRFLOW__WEBSERVER__BASE_URL: http://airflow-webserver:8080
+    AIRFLOW__SDK__API_BASE_URL: http://airflow-webserver:8080/api/v2
+    AIRFLOW__API__BASE_URL: http://airflow-webserver:8080
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-webserver:8080/execution/
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY}
+    AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW__API_AUTH__JWT_SECRET}
   volumes:
     - ./dags:/opt/airflow/dags
     - ./logs:/opt/airflow/logs
@@ -191,18 +198,10 @@ services:
         mkdir -p /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins
         chown -R "${AIRFLOW_UID:-50000}:0" /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins
         /entrypoint airflow db migrate
-        /entrypoint airflow db users create \
-          --username admin \
-          --firstname Admin \
-          --lastname User \
-          --role Admin \
-          --email admin@example.com \
-          --password admin
-        echo "Database initialized and admin user created successfully"
+        echo "Database initialized"
     environment:
       <<: *airflow-common-env
       _AIRFLOW_DB_MIGRATE: 'true'
-      _AIRFLOW_DB_UPGRADE: 'true'
     user: "0:0"
     depends_on:
       <<: *airflow-common-depends-on
