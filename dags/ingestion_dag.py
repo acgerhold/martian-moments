@@ -1,8 +1,10 @@
 from airflow import DAG
 from airflow.decorators import task
 from datetime import datetime
+import sys
 
-from src.ingestion import extract_manifest_from_nasa, extract_photos_from_nasa
+sys.path.append('/opt/airflow')
+from src.ingestion import extract_photos_from_nasa
 
 ROVERS = ["curiosity", "opportunity", "spirit", "perseverance"]
 SOLS = [0, 1, 2]
@@ -10,7 +12,7 @@ SOLS = [0, 1, 2]
 with DAG(
     dag_id="mars_rover_ingestion",
     start_date=datetime(2025, 1, 1),
-    schedule_interval=None,
+    schedule=None,
     catchup=False,
 ) as dag:
     
@@ -23,7 +25,7 @@ with DAG(
         combined_sol_results = {
             "sol": sol,
             "photos": results
-        }
+        }       
 
         return combined_sol_results
     

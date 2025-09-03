@@ -9,11 +9,20 @@ x-airflow-common:
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
     AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
     AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
-    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY}
+    AIRFLOW__CORE__FERNET_KEY: 'QkQwQk1wQ2JwQ2h0b2JwQ2h0b2JwQ2h0b2JwQ2h0b2I='
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: "admin:admin"
+    AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USE_BUILTIN_PASSWORD: 'true'
+    AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: 300
+    AIRFLOW__CORE__PARALLELISM: 32
+    AIRFLOW__CORE__DAG_CONCURRENCY: 16
+    AIRFLOW__CORE__MAX_ACTIVE_RUNS_PER_DAG: 16
   volumes:
     - ./dags:/opt/airflow/dags
     - ./logs:/opt/airflow/logs
+    - ./plugins:/opt/airflow/plugins
+    - ./src:/opt/airflow/src
+  user: "${AIRFLOW_UID:-50000}:0"
   depends_on: &airflow-common-depends-on
     postgres:
       condition: service_healthy
@@ -142,6 +151,16 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
+  airflow-dag-processor:
+    <<: *airflow-common
+    container_name: airflow_dag_processor_mars
+    command: dag-processor
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
   airflow-triggerer:
     <<: *airflow-common
     container_name: airflow_triggerer_mars
@@ -169,14 +188,21 @@ services:
     command:
       - -c
       - |
-        mkdir -p /opt/airflow/logs /opt/airflow/dags
+        mkdir -p /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins
+        chown -R "${AIRFLOW_UID:-50000}:0" /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins
         /entrypoint airflow db migrate
-        echo "Database initialized successfully"
+        /entrypoint airflow db users create \
+          --username admin \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@example.com \
+          --password admin
+        echo "Database initialized and admin user created successfully"
     environment:
       <<: *airflow-common-env
       _AIRFLOW_DB_MIGRATE: 'true'
-      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: "admin:admin"
-      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USE_BUILTIN_PASSWORD: 'false'
+      _AIRFLOW_DB_UPGRADE: 'true'
     user: "0:0"
     depends_on:
       <<: *airflow-common-depends-on

@@ -11,7 +11,7 @@ def setup_logger_advanced(name: str,
     Logger setup with explicit category directories.
     
     Args:
-        name: Logger name
+        name: Logger name 
         log_file: Log filename (just the filename, not full path)
         category_dir: Category directory (e.g., 'data_processing', 'api', 'ml')
         use_date_subdirectory: If True, adds date subdirectory
