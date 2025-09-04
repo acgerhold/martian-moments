@@ -1,73 +1,89 @@
+from airflow.models import Variable
 from airflow import DAG
 from airflow.decorators import task, dag
-from airflow.operators.python import get_current_context
 from datetime import datetime, timezone
-import json
 import logging
 import sys
-from itertools import product
 
 sys.path.append('/opt/airflow')
 from src.ingestion import extract_photos_from_nasa
+from src.utils.minio import get_minio_client, upload_json_to_minio
 from src.utils.logger import setup_logger
 
-
-ROVERS = ["Perseverance", "Curiosity"]
-SOLS = [0, 1]
-
 @dag(
-    dag_id="mars_rover_ingestion",
+    dag_id="mars_rover_photos_ingestion",
     start_date=datetime(2025, 1, 1),
     schedule=None,
     catchup=False,
+    tags=["nasa", "photos", "ingestion"]
 )
-def mars_rover_ingestion_dag():
+def mars_rover_photos_ingestion_dag():
+    
     @task
-    def fetch_rover_photos(pair):
-        rover = pair["rover"]
-        sol = pair["sol"]
-        logger = setup_logger("nasa_api.log", "ingestion")  
-        logger.info(f"Running 'extract_photos_from_nasa' for rover: {rover} on sol: {sol}")
-        print(f"Running 'extract_photos_from_nasa' for rover: {rover} on sol: {sol}")
-        return extract_photos_from_nasa(rover, sol, logger)
+    def get_ingestion_config():
+        rovers = Variable.get(
+            "mars_rovers", 
+            default_var=["Perseverance"], 
+            deserialize_json=True
+        )
+        sols = Variable.get(
+            "mars_sols", 
+            default_var=list(range(0, 2)), 
+            deserialize_json=True
+        )
+        
+        logging.info(f"Recieved ingestion configuration - 'mars_rovers': {rovers} - 'mars_sols': {sols}")
+        
+        tasks = []
+        for rover in rovers:
+            for sol in sols:
+                tasks.append({"rover": rover, "sol": sol})
+        
+        logging.info(f"{len(tasks)} tasks scheduled for this DAG run")
+        
+        return tasks
 
     @task
-    def consolidate_rover_photos_by_sol(results, sol):
-        context = get_current_context()
-        logger = setup_logger("nasa_api.log", "ingestion")
-        logger.info(f"Running 'consolidate_rover_photos_by_sol' for sol: {sol}")
-        print(f"Running 'consolidate_rover_photos_by_sol' for sol: {sol}")
+    def fetch_and_store_rover_photos(rover: str, sol: int):
+        logger = setup_logger("ingestion_dag.log", "ingestion")
+        logger.info(f"Fetching photos for rover: {rover} on sol: {sol}")
+        
+        photos_data = extract_photos_from_nasa(rover, sol, logger)
+        
+        if photos_data:
+            ingestion_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+            filename = f"{rover.lower()}_photos_sol_{sol}_{ingestion_timestamp}.json"
+            
+            enhanced_data = {
+                "photos": photos_data.get('photos', []),
+                "rover": rover,
+                "sol": sol,
+                "ingestion_date": ingestion_timestamp,
+                "photo_count": len(photos_data.get('photos', []))
+            }
+            
+            filepath = f"{rover.lower()}/{filename}"
+            minio_client = get_minio_client()
+            upload_json_to_minio(minio_client, filepath, enhanced_data)
 
-        # Resolve all results
-        if hasattr(results, "resolve"):
-            all_photos = results.resolve(context)
+            logger.info(f"Successfully stored {enhanced_data['photo_count']} photos for rover: {rover} on sol: {sol}")
+            
+            return {
+                "filename": filename, 
+                "rover": rover, 
+                "sol": sol,
+                "photo_count": enhanced_data['photo_count'],
+                "status": "success"
+            }
         else:
-            all_photos = results
+            logger.warning(f"No photos found for rover: {rover} on sol: {sol}")
+            return {
+                "rover": rover, 
+                "sol": sol, 
+                "status": "no_data"
+            }
 
-        raw_photo_responses = []
-        for r in all_photos:
-            if r and r.get('sol') == sol:
-                raw_photo_responses.append(r.get('photos', {}))
+    config = get_ingestion_config()
+    fetch_and_store_rover_photos.expand_kwargs(config)
 
-        ingestion_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
-        filename = f"raw_photo_response_sol_{sol}_{ingestion_timestamp}.json"
-
-        enhanced_responses = {
-            "photos": raw_photo_responses,
-            "ingestion_date": ingestion_timestamp,
-            "sol": sol,
-            "filename": filename
-        }
-
-        return {filename: enhanced_responses}
-
-    pairs = [{"rover": r, "sol": s} for r, s in product(ROVERS, SOLS)]
-    fetch_results = fetch_rover_photos.expand(pair=pairs)
-
-    consolidate_rover_photos_by_sol.expand(
-        results=[fetch_results] * len(SOLS),
-        sol=SOLS
-    )
-
-dag = mars_rover_ingestion_dag()
-
+dag = mars_rover_photos_ingestion_dag()
