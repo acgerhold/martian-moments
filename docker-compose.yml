@@ -83,11 +83,11 @@ services:
     image: minio/minio:latest
     container_name: minio_mars
     environment:
-      - MINIO_ROOT_USER=admin
-      - MINIO_ROOT_PASSWORD=password
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
       - MINIO_DOMAIN=storage
-      - MINIO_REGION_NAME=us-east-1
-      - MINIO_REGION=us-east-1
+      - MINIO_REGION_NAME=${MINIO_REGION_NAME}
+      - MINIO_REGION=${MINIO_REGION_NAME}
       - MINIO_NOTIFY_KAFKA_ENABLE=on
       - MINIO_NOTIFY_KAFKA_BROKERS=kafka:9092
     ports:
