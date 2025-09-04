@@ -1,6 +1,7 @@
 from airflow.models import Variable
 from airflow import DAG
 from airflow.decorators import task, dag
+from airflow.operators import get_current_context
 from datetime import datetime, timezone
 import logging
 import sys
@@ -8,6 +9,7 @@ import sys
 sys.path.append('/opt/airflow')
 from src.ingestion import extract_photos_from_nasa
 from src.utils.minio import get_minio_client, upload_json_to_minio
+from src.assets.rover_assets import MARS_ROVER_PHOTOS
 from src.utils.logger import setup_logger
 
 @dag(
@@ -39,8 +41,7 @@ def mars_rover_photos_ingestion_dag():
             for sol in sols:
                 tasks.append({"rover": rover, "sol": sol})
         
-        logging.info(f"{len(tasks)} tasks scheduled for this DAG run")
-        
+        logging.info(f"{len(tasks)} tasks scheduled for this DAG run")        
         return tasks
 
     @task
@@ -62,14 +63,15 @@ def mars_rover_photos_ingestion_dag():
                 "photo_count": len(photos_data.get('photos', []))
             }
             
-            filepath = f"{rover.lower()}/{filename}"
+            filepath = f"photos/{rover.lower()}/{filename}"
             minio_client = get_minio_client()
             upload_json_to_minio(minio_client, filepath, enhanced_data)
 
             logger.info(f"Successfully stored {enhanced_data['photo_count']} photos for rover: {rover} on sol: {sol}")
             
             return {
-                "filename": filename, 
+                "filename": filename,
+                "filepath": filepath, 
                 "rover": rover, 
                 "sol": sol,
                 "photo_count": enhanced_data['photo_count'],
