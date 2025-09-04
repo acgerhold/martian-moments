@@ -1,7 +1,5 @@
 from airflow.models import Variable
-from airflow import DAG
 from airflow.decorators import task, dag
-from airflow.operators import get_current_context
 from datetime import datetime, timezone
 import logging
 import sys
@@ -9,7 +7,6 @@ import sys
 sys.path.append('/opt/airflow')
 from src.ingestion import extract_photos_from_nasa
 from src.utils.minio import get_minio_client, upload_json_to_minio
-from src.assets.rover_assets import MARS_ROVER_PHOTOS
 from src.utils.logger import setup_logger
 
 @dag(
