@@ -150,9 +150,10 @@ services:
       - MINIO_DOMAIN=storage
       - MINIO_REGION_NAME=${MINIO_REGION_NAME}
       - MINIO_REGION=${MINIO_REGION_NAME}
-      - MINIO_NOTIFY_KAFKA_ENABLE=on
-      - MINIO_NOTIFY_KAFKA_BROKERS=kafka:9092
-      - MINIO_NOTIFY_KAFKA_TOPIC_PRIMARY=minio-events
+      - MINIO_NOTIFY_KAFKA_ENABLE_FILE_EVENTS=on
+      - MINIO_NOTIFY_KAFKA_BROKERS_FILE_EVENTS=kafka:9092
+      - MINIO_NOTIFY_KAFKA_TOPIC_FILE_EVENTS=minio-events
+      - MINIO_NOTIFY_KAFKA_CLIENT_ID_FILE_EVENTS=minio-events
     ports:
       - "9001:9001"
       - "9000:9000"
@@ -170,6 +171,24 @@ services:
       kafka-init: 
         condition: service_completed_successfully
     restart: always
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: minio_init_mars
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "
+      echo 'Setting up MinIO bucket and events...' &&
+      mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} &&
+      mc mb --ignore-existing myminio/mars &&
+      echo 'Waiting for notification config to be ready...' &&
+      sleep 10 &&
+      mc event add myminio/mars arn:minio:sqs:us-east-1:FILE_EVENTS:kafka --event put &&
+      echo 'MinIO setup complete'
+      "
+    restart: "no"
 
   airflow-webserver:
     <<: *airflow-common
