@@ -1,5 +1,8 @@
 apache-airflow-providers-apache-kafka>=1.9.0
 apache-airflow-providers-common-messaging>=1.0.3
+pytest-mock>=3.10.0
+pytest-cov>=4.0.0
+requests-mock>=1.10.0
 snowflake-connector-python[pandas]
 snowflake-sqlalchemy
 pytest
