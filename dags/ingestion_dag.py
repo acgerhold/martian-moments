@@ -14,7 +14,7 @@ from src.utils.logger import setup_logger
     start_date=datetime(2025, 1, 1),
     schedule=None,
     catchup=False,
-    tags=["nasa", "photos", "ingestion"]
+    tags=["nasa", "photos", "ingestion", "single"]
 )
 def mars_rover_photos_ingestion_dag():
     
@@ -22,12 +22,12 @@ def mars_rover_photos_ingestion_dag():
     def get_ingestion_config():
         rovers = Variable.get(
             "mars_rovers", 
-            default_var=["Perseverance"], 
+            default_var=["Perseverance", "Curiosity", "Opportunity", "Spirit"], 
             deserialize_json=True
         )
         sols = Variable.get(
             "mars_sols", 
-            default_var=list(range(0, 2)), 
+            default_var=list(range(0, 1)), 
             deserialize_json=True
         )
         
@@ -53,19 +53,19 @@ def mars_rover_photos_ingestion_dag():
             filename = f"{rover.lower()}_photos_sol_{sol}_{ingestion_timestamp}.json"
             
             enhanced_data = {
+                "filename": filename,
+                "sol_start": sol,
+                "sol_end": sol,
+                "photo_count": len(photos_data.get('photos', [])),
                 "photos": photos_data.get('photos', []),
-                "rover": rover,
-                "sol": sol,
                 "ingestion_date": ingestion_timestamp,
-                "photo_count": len(photos_data.get('photos', []))
             }
             
             filepath = f"photos/{rover.lower()}/{filename}"
             minio_client = get_minio_client()
             upload_json_to_minio(minio_client, filepath, enhanced_data)
 
-            logger.info(f"Successfully stored {enhanced_data['photo_count']} photos for rover: {rover} on sol: {sol}")
-            
+            logger.info(f"Successfully stored {enhanced_data['photo_count']} photos for rover: {rover} on sol: {sol}")            
             return {
                 "filename": filename,
                 "filepath": filepath, 
