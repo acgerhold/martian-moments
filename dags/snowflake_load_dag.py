@@ -16,7 +16,7 @@ def apply_function(*args, **kwargs):
 
 trigger = MessageQueueTrigger(
     queue="kafka://kafka:9092/minio-events",
-    apply_function="dags.snowflake_load_dag.apply_function"
+    apply_function="snowflake_load_dag.apply_function"
 )
 
 kafka_topic_asset = Asset(
