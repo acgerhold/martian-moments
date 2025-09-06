@@ -24,6 +24,7 @@ x-airflow-common:
     AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-webserver:8080/execution/
     AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY}
     AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW__API_AUTH__JWT_SECRET}
+    PYTHONPATH: /opt/airflow:/opt/airflow/dags:/opt/airflow/src
   volumes:
     - ./dags:/opt/airflow/dags
     - ./logs:/opt/airflow/logs
@@ -134,7 +135,7 @@ services:
       sh -c "
       echo 'Creating Kafka topics...' &&
       kafka-topics --create --bootstrap-server kafka:9092 --replication-factor 1 --partitions 3 --topic minio-events --if-not-exists &&
-      echo 'Topics created successfully'
+      echo 'Topics created successfully!'
       "
     depends_on:
       kafka:
@@ -183,10 +184,8 @@ services:
       echo 'Setting up MinIO bucket and events...' &&
       mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} &&
       mc mb --ignore-existing myminio/mars &&
-      echo 'Waiting for notification config to be ready...' &&
-      sleep 10 &&
       mc event add myminio/mars arn:minio:sqs:us-east-1:FILE_EVENTS:kafka --event put &&
-      echo 'MinIO setup complete'
+      echo 'MinIO setup complete!'
       "
     restart: "no"
 
