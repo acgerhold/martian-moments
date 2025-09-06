@@ -14,11 +14,12 @@ def extract_photos_from_nasa(rover: str, sol: int, logger):
         response = requests.get(photos_request, timeout=30)
         response.raise_for_status()
         photos_response = response.json()
-    except requests.RequestException as e:
-        print(f"Error processing photos request for rover: {rover} on sol: {sol}: {e}")
-        logger.error(f"Error processing photos request for rover: {rover} on sol: {sol}: {e}")
-
-    return photos_response
+        return photos_response
+    except Exception as e:
+        error_msg = f"Error processing photos request for rover: {rover} on sol: {sol}: {e}"
+        print(error_msg)
+        logger.error(error_msg)
+        return {"photos": []}
 
 def extract_manifest_from_nasa(rover: str, logger):
     logger.info(f"Processing manifest request for rover: {rover}")
@@ -32,8 +33,9 @@ def extract_manifest_from_nasa(rover: str, logger):
         response = requests.get(manifest_request, timeout=30)
         response.raise_for_status()
         manifest_response = response.json()
-    except requests.RequestException as e:
-        print(f"Error processing manifest request for rover {rover}: {e}")
-        logger.error(f"Error processing manifest request for rover {rover}: {e}")
-
-    return manifest_response 
+        return manifest_response
+    except Exception as e:
+        error_msg = f"Error processing manifest request for rover {rover}: {e}"
+        print(error_msg)
+        logger.error(error_msg)
+        return {"manifest": []}

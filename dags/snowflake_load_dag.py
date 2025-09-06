@@ -2,6 +2,11 @@ from airflow.providers.common.messaging.triggers.msg_queue import MessageQueueTr
 from airflow.sdk import dag, task, Asset, AssetWatcher
 import json
 import urllib.parse
+import sys 
+
+sys.path.append('/opt/airflow')
+from src.utils.minio import extract_json_as_jsonl_from_minio
+from src.utils.snowflake import get_snowflake_connection, copy_photos_to_snowflake
 
 def apply_function(*args, **kwargs):
     message = args[-1]
