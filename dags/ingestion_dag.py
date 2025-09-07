@@ -20,6 +20,9 @@ def mars_rover_photos_ingestion_dag():
     
     @task
     def get_ingestion_config():
+        logger = setup_logger('get_ingestion_config_task', 'ingestion_dag.log', 'ingestion')
+
+        logger.info("Retrieving variables from Airflow")
         rovers = Variable.get(
             "mars_rovers", 
             default_var=["Perseverance", "Curiosity", "Opportunity", "Spirit"], 
@@ -30,24 +33,24 @@ def mars_rover_photos_ingestion_dag():
             default_var=list(range(0, 1)), 
             deserialize_json=True
         )
+        logger.info(f"Recieved ingestion configuration - 'mars_rovers': {rovers} - 'mars_sols': {sols}")
         
-        logging.info(f"Recieved ingestion configuration - 'mars_rovers': {rovers} - 'mars_sols': {sols}")
-        
+        logger.info("Creating tasks for DAG run")
         tasks = []
         for rover in rovers:
             for sol in sols:
                 tasks.append({"rover": rover, "sol": sol})
-        
-        logging.info(f"{len(tasks)} tasks scheduled for this DAG run")        
+        logger.info(f"{len(tasks)} tasks scheduled for DAG run")   
+
         return tasks
 
     @task
     def fetch_and_store_rover_photos(rover: str, sol: int):
-        logger = setup_logger("ingestion_dag.log", "ingestion")
-        logger.info(f"Fetching photos for rover: {rover} on sol: {sol}")
-        
+        logger = setup_logger('fetch_and_store_rover_photos_task', 'ingestion_dag.log', 'ingestion')
+
+        logger.info(f"Fetching photos for {rover} on sol {sol}")   
         photos_data = extract_photos_from_nasa(rover, sol, logger)
-        
+
         if photos_data:
             ingestion_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
             filename = f"{rover.lower()}_photos_sol_{sol}_{ingestion_timestamp}.json"
@@ -61,11 +64,12 @@ def mars_rover_photos_ingestion_dag():
                 "ingestion_date": ingestion_timestamp,
             }
             
+            logger.info("Uploading to MinIO")
             filepath = f"photos/{rover.lower()}/{filename}"
             minio_client = get_minio_client()
             upload_json_to_minio(minio_client, filepath, enhanced_data)
-
-            logger.info(f"Successfully stored {enhanced_data['photo_count']} photos for rover: {rover} on sol: {sol}")            
+            logger.info(f"Stored {enhanced_data['photo_count']} photos for {rover} on sol {sol}")
+            
             return {
                 "filename": filename,
                 "filepath": filepath, 
@@ -75,7 +79,7 @@ def mars_rover_photos_ingestion_dag():
                 "status": "success"
             }
         else:
-            logger.warning(f"No photos found for rover: {rover} on sol: {sol}")
+            logger.warning(f"No photos found for {rover} on sol {sol}")
             return {
                 "rover": rover, 
                 "sol": sol, 

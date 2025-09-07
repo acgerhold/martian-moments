@@ -21,23 +21,22 @@ def create_photos_bronze_table(cursor):
     tables_sql = {
         'raw_photos': """
             CREATE TABLE IF NOT EXISTS RAW_PHOTO_RESPONSE (
-                photos VARIANT,
-                ingestion_date TIMESTAMP_NTZ,
-                sol INTEGER,
-                rover STRING,
                 filename STRING
+                sol_start INTEGER,
+                sol_end STRING,
+                photo_count INTEGER
+                photos VARIANT,
+                ingestion_date TIMESTAMP_NTZ            
             )
         """
     }
 
     cursor.execute(f"USE SCHEMA {os.getenv('SNOWFLAKE_DATABASE')}.{os.getenv('SNOWFLAKE_SCHEMA_BRONZE')};")
-
     for table_name, sql in tables_sql.items():
         cursor.execute(sql)
 
 def copy_photos_to_snowflake(cursor, jsonl_file_path):
-    cursor.execute(f"USE SCHEMA {os.getenv('SNOWFLAKE_DATABASE')}.{os.getenv('SNOWFLAKE_SCHEMA_BRONZE')};")
-    
+    cursor.execute(f"USE SCHEMA {os.getenv('SNOWFLAKE_DATABASE')}.{os.getenv('SNOWFLAKE_SCHEMA_BRONZE')};")    
     cursor.execute("REMOVE @%RAW_PHOTO_RESPONSE PATTERN='.*';")
     
     try:

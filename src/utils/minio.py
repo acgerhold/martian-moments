@@ -55,21 +55,3 @@ def extract_json_as_jsonl_from_minio(minio_client, minio_filepath):
     os.remove(tmp_filepath)
     
     return jsonl_path
-
-def get_recent_minio_files(minio_client, minutes_ago=60):
-    logger = setup_logger()
-    cutoff_time = datetime.now() - timedelta(minutes=minutes_ago)
-    recent_files = []
-    bucket = os.getenv('MINIO_BUCKET_NAME')
-    
-    try:
-        objects = minio_client.list_objects(bucket, prefix="photos/", recursive=True)
-        
-        for obj in objects:
-            if obj.last_modified > cutoff_time and obj.object_name.endswith('.json'):
-                recent_files.append(obj.object_name)
-                
-    except Exception as e:
-        logger.error(f"Error listing MinIO files: {e}")
-    
-    return recent_files
