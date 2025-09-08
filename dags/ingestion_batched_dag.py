@@ -50,7 +50,7 @@ def mars_rover_photos_ingestion_batched_dag():
         logger.info(f"Fetching photos for {rover} on sol {sol}")    
         photos_result = extract_photos_from_nasa(rover, sol, logger)
 
-        logger.info(f"Fetched {photos_result['photo_count']} photos for {rover} on sol {sol}")        
+        logger.info(f"Fetched {len(photos_result.get('photos', []))} photos for {rover} on sol {sol}")        
         return photos_result
 
     @task

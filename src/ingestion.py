@@ -66,9 +66,9 @@ def create_final_batch_json(sols, all_rover_photos_results):
 
         all_photos = []
         for result in all_rover_photos_results:
-            for photo_array in result:
-                if photo_array:
-                    all_photos.extend(photo_array)
+            photos = result.get('photos', [])
+            if photos:
+                all_photos.extend(photos)
 
         photo_count = len(all_photos)        
         ingestion_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")

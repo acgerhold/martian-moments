@@ -17,7 +17,5 @@ jobs:
             🚀 **Martian Moments Update**
             
             **${{ steps.pr.outputs.pr_title || github.event.head_commit.message }}**
-            
-            ${{ steps.pr.outputs.pr_body || 'No description provided.' }}
-            
+                        
             🔗 **[View Changes](${{ github.event.head_commit.url }})**
