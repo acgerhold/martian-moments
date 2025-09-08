@@ -5,6 +5,8 @@ pytest-cov>=4.0.0
 requests-mock>=1.10.0
 snowflake-connector-python[pandas]
 snowflake-sqlalchemy
+dbt-core
+dbt-snowflake
 pytest
 minio
 requests

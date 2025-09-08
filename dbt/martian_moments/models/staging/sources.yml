@@ -1,0 +1,52 @@
+version: 2
+
+sources:
+  - name: MARS_BRONZE
+    description: "Bronze layer tables from Snowflake"
+    database: MARS_DB
+    schema: MARS_BRONZE
+    tables:
+      - name: RAW_PHOTO_RESPONSE
+        description: "Raw photo response data from NASA API"
+        columns:
+          - name: photos
+            description: "Source JSON data"
+            tests:
+              - not_null
+              - unique
+
+models:
+  - name: flat_photos_response
+    description: "Flattened photo response data with parsed JSON"
+    columns:
+      - name: image_id
+        description: "Unique identifier for each photo"
+        tests:
+          - not_null
+          - unique
+      - name: rover_name
+        description: "Name of the Mars rover"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Perseverance', 'Curiosity', 'Opportunity', 'Spirit', 'Sojourner']
+      - name: sol
+        description: "Sol (Mars day) when photo was taken"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: earth_date
+        description: "Earth date when photo was taken"
+        tests:
+          - not_null
+      - name: img_src
+        description: "URL to the image"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "LIKE 'http%'"
+      - name: camera_name
+        description: "Camera name abbreviation"
+        tests:
+          - not_null
