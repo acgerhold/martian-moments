@@ -51,35 +51,20 @@ def mars_rover_photos_ingestion_batched_dag():
         photos_data = extract_photos_from_nasa(rover, sol, logger)
                 
         if photos_data:
-            ingestion_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
-            filename = f"{rover.lower()}_photos_sol_{sol}_{ingestion_timestamp}.json"
-            
-            enhanced_data = {
-                "filename": filename,
-                "sol_start": sol,
-                "sol_end": sol,
-                "photo_count": len(photos_data.get('photos', [])),
-                "photos": photos_data.get('photos', []),
-                "ingestion_date": ingestion_timestamp
-            }
-            logger.info(f"Fetched {enhanced_data['photo_count']} photos for {rover} on sol {sol}")
+            photo_count = len(photos_data.get('photos', [])),
+            photos = photos_data.get('photos', []),
+            logger.info(f"Fetched {photo_count} photos for {rover} on sol {sol}")
 
-            return enhanced_data
+            return photos
         else:
             logger.warning(f"No photos found for rover: {rover} on sol: {sol}")
-            return {
-                "filename": filename, 
-                "sol_start": sol,
-                "sol_end": sol,
-                "photo_count": 0, 
-                "photos": [],
-                "ingestion_date": ingestion_timestamp
-            }
 
     @task
     def create_combined_batch_file(all_rover_results: list):
         logger = setup_logger('create_combined_batch_file_task', 'ingestion_batched_dag.log', 'ingestion')
-    
+
+        all_rover_results = list(all_rover_results)
+
         logger.info("Retrieving variables from Airflow")
         sols = Variable.get(
             "mars_sols", 
@@ -88,12 +73,16 @@ def mars_rover_photos_ingestion_batched_dag():
         )
         sol_start = min(sols)
         sol_end = max(sols)
+
         logger.info(f"Creating batch file for sols {sol_start} to {sol_end}")
-        
-        all_rover_results = list(all_rover_results)
+        all_photos = []
+        for result in all_rover_results:
+            for photo_array in result:
+                if photo_array:
+                    all_photos.extend(photo_array)
+        photo_count = len(all_photos)
         
         ingestion_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
-        total_photos = sum(result["photo_count"] for result in all_rover_results)
         if sol_start == sol_end:
             filename = f"mars_rover_photos_batch_sol_{sol_start}_{ingestion_timestamp}.json"
         else:
@@ -103,8 +92,8 @@ def mars_rover_photos_ingestion_batched_dag():
             "filename": filename,
             "sol_start": sol_start,
             "sol_end": sol_end,
-            "photo_count": sum(result["photo_count"] for result in all_rover_results),
-            "photos": all_rover_results,
+            "photo_count": photo_count,
+            "photos": all_photos,
             "ingestion_date": ingestion_timestamp
         }
         
@@ -112,19 +101,18 @@ def mars_rover_photos_ingestion_batched_dag():
         filepath = f"photos/batched/{filename}"        
         minio_client = get_minio_client()
         upload_json_to_minio(minio_client, filepath, final_json)
-        logger.info(f"Stored {total_photos} total photos across {len(all_rover_results)} rover/sol combinations")
+        logger.info(f"Stored {photo_count} total photos across {len(all_rover_results)} rover/sol combinations")
 
         return {
             "filename": filename,
             "filepath": filepath,
             "total_records": len(all_rover_results),
-            "total_photos": total_photos,
+            "total_photos": photo_count,
             "status": "success"
         }
 
     config = get_ingestion_config()
     all_results = fetch_and_collect_rover_photos.expand_kwargs(config)
-    
     batch_result = create_combined_batch_file(all_results)
 
 dag = mars_rover_photos_ingestion_batched_dag()

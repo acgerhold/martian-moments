@@ -4,9 +4,6 @@ from minio import Minio
 import tempfile
 import json
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
-
-from src.utils.logger import setup_logger
 
 load_dotenv()
 
@@ -39,8 +36,9 @@ def upload_json_to_minio(minio_client, minio_filepath, data):
     return print("Potential Kafka Event")
 
 def extract_json_as_jsonl_from_minio(minio_client, minio_filepath):
-    bucket = os.getenv('MINIO_BUCKET_NAME')
+    bucket = os.getenv('MINIO_BUCKET')
     tmp_dir = tempfile.gettempdir()
+    minio_filepath = minio_filepath.replace(f"{bucket}/", "", 1)
     
     tmp_filepath = os.path.join(tmp_dir, os.path.basename(minio_filepath))
     minio_client.fget_object(bucket, minio_filepath, tmp_filepath)

@@ -6,7 +6,7 @@ import sys
 
 sys.path.append('/opt/airflow')
 from src.utils.minio import get_minio_client, extract_json_as_jsonl_from_minio
-from src.utils.snowflake import get_snowflake_connection, copy_photos_to_snowflake, create_photos_bronze_table
+from src.utils.snowflake import get_snowflake_connection, copy_photos_to_snowflake
 from src.utils.logger import setup_logger
 
 def apply_function(*args, **kwargs):
@@ -44,7 +44,7 @@ def load_photos_to_snowflake_dag():
             minio_filepath = event.extra.get('payload', {}).get('filepath')
             logger.info(f"Filepath recieved from event: {minio_filepath}")
 
-            return minio_filepath
+            return str(minio_filepath)
         
     @task
     def load_to_snowflake(minio_filepath: str):
@@ -55,17 +55,14 @@ def load_photos_to_snowflake_dag():
         
         logger.info(f"Extracting {minio_filepath} from MinIO")
         minio_client = get_minio_client()
-        photos_data_jsonl = extract_json_as_jsonl_from_minio(minio_client, minio_filepath)
+        photos_data_jsonl_path = extract_json_as_jsonl_from_minio(minio_client, minio_filepath)
         
         logger.info(f"Connecting to Snowflake")
         snowflake_connection = get_snowflake_connection()
         with snowflake_connection.cursor() as snowflake_cursor:
             try:
-                logger.info(f"Creating bronze tables")
-                create_photos_bronze_table(snowflake_cursor)
-
                 logger.info(f"Copying data to Snowflake")
-                copy_photos_to_snowflake(snowflake_cursor, photos_data_jsonl)
+                copy_photos_to_snowflake(snowflake_cursor, photos_data_jsonl_path)
             finally:
                 snowflake_cursor.close()
                 snowflake_connection.close()    
