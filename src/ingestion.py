@@ -2,13 +2,15 @@ import requests
 import os
 from dotenv import load_dotenv
 
+load_dotenv()
+NASA_KEY = os.getenv('NASA_KEY')
+
 def extract_photos_from_nasa(rover: str, sol: int, logger):
     logger.info(f"Processing photos request for rover: {rover} on sol: {sol}")
 
-    load_dotenv()
     photos_request = (
         f"https://api.nasa.gov/mars-photos/api/v1/rovers/{rover}/photos"
-        f"?sol={sol}&api_key={os.getenv('NASA_KEY')}"
+        f"?sol={sol}&api_key={NASA_KEY}"
     )
     try:
         response = requests.get(photos_request, timeout=30)
@@ -27,7 +29,7 @@ def extract_manifest_from_nasa(rover: str, logger):
     load_dotenv()
     manifest_request = (
         f"https://api.nasa.gov/mars-photos/api/v1/manifests/{rover}"
-        f"?api_key={os.getenv('NASA_KEY')}"
+        f"?api_key={NASA_KEY}"
     )
     try:
         response = requests.get(manifest_request, timeout=30)

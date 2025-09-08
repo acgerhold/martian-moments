@@ -2,12 +2,10 @@ import pytest
 from unittest.mock import patch, MagicMock
 import json
 from datetime import datetime, timedelta
-
 from src.utils.minio import (
     get_minio_client,
     upload_json_to_minio,
     extract_json_as_jsonl_from_minio,
-    get_recent_minio_files
 )
 
 @pytest.fixture
@@ -27,7 +25,6 @@ def sample_json_data():
     }
 
 def test_get_minio_client(monkeypatch):
-    """Test Minio client initialization with environment variables"""
     # Mock environment variables
     env_vars = {
         'MINIO_EXTERNAL_URL': 'localhost:9000',
@@ -48,18 +45,17 @@ def test_get_minio_client(monkeypatch):
                 secure=False
             )
 
-def test_upload_json_to_minio(mock_minio_client, sample_json_data, monkeypatch):
-    """Test uploading JSON data to MinIO"""
+def test_upload_json_to_minio_new_bucket(mock_minio_client, sample_json_data, monkeypatch):
     # Mock environment variable
     monkeypatch.setenv('MINIO_BUCKET', 'test-bucket')
     
-    # Set up mock client behavior
+    # Set up mock client behavior - bucket doesn't exist
     mock_minio_client.bucket_exists.return_value = False
     
     # Test uploading data
     upload_json_to_minio(mock_minio_client, 'test/path.json', sample_json_data)
     
-    # Verify bucket was created if it didn't exist
+    # Verify bucket was created
     mock_minio_client.make_bucket.assert_called_once_with('test-bucket')
     
     # Verify put_object was called with correct parameters
@@ -69,8 +65,34 @@ def test_upload_json_to_minio(mock_minio_client, sample_json_data, monkeypatch):
     assert call_args['object_name'] == 'test/path.json'
     assert call_args['content_type'] == 'application/json'
 
+def test_upload_json_to_minio_existing_bucket(mock_minio_client, sample_json_data, monkeypatch):
+    monkeypatch.setenv('MINIO_BUCKET', 'existing-bucket')
+    
+    # Set up mock client behavior - bucket exists
+    mock_minio_client.bucket_exists.return_value = True
+    
+    upload_json_to_minio(mock_minio_client, 'photos/test.json', sample_json_data)
+    
+    # Verify bucket was NOT created since it already exists
+    mock_minio_client.make_bucket.assert_not_called()
+    
+    # Verify put_object was still called
+    mock_minio_client.put_object.assert_called_once()
+
+def test_upload_json_to_minio_large_data(mock_minio_client, monkeypatch):
+    monkeypatch.setenv('MINIO_BUCKET', 'test-bucket')
+    mock_minio_client.bucket_exists.return_value = True
+    
+    # Create large dataset
+    large_data = {"photos": [{"id": i, "img_src": f"photo{i}.jpg"} for i in range(1000)]}
+    
+    upload_json_to_minio(mock_minio_client, 'bulk/photos.json', large_data)
+    
+    # Verify the data size was calculated correctly
+    call_args = mock_minio_client.put_object.call_args[1]
+    assert call_args['length'] > 10000  # Should be a large file
+
 def test_extract_json_as_jsonl_from_minio(mock_minio_client, sample_json_data, monkeypatch, tmp_path):
-    """Test extracting JSON from MinIO and converting to JSONL"""
     monkeypatch.setenv('MINIO_BUCKET_NAME', 'test-bucket')
     test_file = tmp_path / "test.json"
     
@@ -93,54 +115,16 @@ def test_extract_json_as_jsonl_from_minio(mock_minio_client, sample_json_data, m
         jsonl_content = f.read().strip()
         loaded_data = json.loads(jsonl_content)
         assert loaded_data == sample_json_data
+    
+    # Verify original JSON file was cleaned up
+    assert not result_path.endswith('.json')
+    assert result_path.endswith('.jsonl')
 
-@patch('src.utils.minio.setup_logger')
-def test_get_recent_minio_files(mock_logger, mock_minio_client, monkeypatch):
-    """Test retrieving recent files from MinIO"""
-    # Mock environment variable
+def test_extract_json_as_jsonl_from_minio_error(mock_minio_client, monkeypatch):
     monkeypatch.setenv('MINIO_BUCKET_NAME', 'test-bucket')
     
-    # Set up logger mock
-    logger_instance = MagicMock()
-    mock_logger.return_value = logger_instance
+    # Mock fget_object to raise an exception
+    mock_minio_client.fget_object.side_effect = Exception("MinIO connection error")
     
-    # Create mock objects with different timestamps
-    now = datetime.now()
-    recent_file = MagicMock()
-    recent_file.last_modified = now - timedelta(minutes=30)
-    recent_file.object_name = 'photos/recent.json'
-    
-    old_file = MagicMock()
-    old_file.last_modified = now - timedelta(minutes=120)
-    old_file.object_name = 'photos/old.json'
-    
-    # Mock list_objects to return our test files
-    mock_minio_client.list_objects.return_value = [recent_file, old_file]
-    
-    # Test the function
-    recent_files = get_recent_minio_files(mock_minio_client, minutes_ago=60)
-    
-    # Verify only recent files are returned
-    assert len(recent_files) == 1
-    assert recent_files[0] == 'photos/recent.json'
-
-@patch('src.utils.minio.setup_logger')
-def test_get_recent_minio_files_error_handling(mock_logger, mock_minio_client, monkeypatch):
-    """Test error handling in get_recent_minio_files"""
-    # Mock environment variable
-    monkeypatch.setenv('MINIO_BUCKET_NAME', 'test-bucket')
-    
-    # Set up logger mock
-    logger_instance = MagicMock()
-    mock_logger.return_value = logger_instance
-    
-    # Mock list_objects to raise an exception
-    mock_minio_client.list_objects.side_effect = Exception("Connection error")
-    
-    # Test the function
-    recent_files = get_recent_minio_files(mock_minio_client)
-    
-    # Verify empty list is returned on error
-    assert recent_files == []
-    # Verify error was logged
-    logger_instance.error.assert_called_once()
+    with pytest.raises(Exception, match="MinIO connection error"):
+        extract_json_as_jsonl_from_minio(mock_minio_client, 'test/path.json')

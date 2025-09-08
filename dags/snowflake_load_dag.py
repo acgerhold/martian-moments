@@ -5,8 +5,9 @@ import urllib.parse
 import sys 
 
 sys.path.append('/opt/airflow')
-from src.utils.minio import extract_json_as_jsonl_from_minio
+from src.utils.minio import get_minio_client, extract_json_as_jsonl_from_minio
 from src.utils.snowflake import get_snowflake_connection, copy_photos_to_snowflake
+from src.utils.logger import setup_logger
 
 def apply_function(*args, **kwargs):
     message = args[-1]
@@ -33,9 +34,40 @@ def load_photos_to_snowflake_dag():
     
     @task
     def process_message(triggering_asset_events=None):
-        for event in triggering_asset_events[kafka_topic_asset]:
-            print(f"Processing message: {event}")
+        logger = setup_logger('process_message_task', 'snowflake_load_dag.log', 'loading')
 
-    process_message()
+        logger.info("Message recieved, beginning load process")
+        for event in triggering_asset_events[kafka_topic_asset]:
+            logger.info(f"Message: {event}")
+
+            logger.info("Extracting MinIO filepath")
+            minio_filepath = event.extra.get('payload', {}).get('filepath')
+            logger.info(f"Filepath recieved from event: {minio_filepath}")
+
+            return str(minio_filepath)
+        
+    @task
+    def load_to_snowflake(minio_filepath: str):
+        logger = setup_logger('load_to_snowflake_task', 'snowflake_load_dag.log', 'loading')
+        if not minio_filepath:
+            logger.info("No file to process")
+            return
+        
+        logger.info(f"Extracting {minio_filepath} from MinIO")
+        minio_client = get_minio_client()
+        photos_data_jsonl_path = extract_json_as_jsonl_from_minio(minio_client, minio_filepath)
+        
+        logger.info(f"Connecting to Snowflake")
+        snowflake_connection = get_snowflake_connection()
+        with snowflake_connection.cursor() as snowflake_cursor:
+            try:
+                logger.info(f"Copying data to Snowflake")
+                copy_photos_to_snowflake(snowflake_cursor, photos_data_jsonl_path)
+            finally:
+                snowflake_cursor.close()
+                snowflake_connection.close()    
+
+    minio_filepath = process_message()
+    load_to_snowflake(minio_filepath)
 
 load_photos_to_snowflake_dag()
