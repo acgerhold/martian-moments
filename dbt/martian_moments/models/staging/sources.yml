@@ -14,9 +14,22 @@ sources:
             tests:
               - not_null
               - unique
+  - name: MARS_SILVER
+    description: "Silver layer tables from Snowflake"
+    database: MARS_DB
+    schema: MARS_SILVER
+    tables:
+      - name: FLAT_PHOTO_RESPONSE
+        description: "Flattened 'photos' column from RAW_PHOTO_RESPONSE"
+        columns:
+          - name: image_id
+            description: "A photo's unique ID"
+            tests:
+              - not_null
+              - unique
 
 models:
-  - name: flat_photos_response
+  - name: flat_photo_response
     description: "Flattened photo response data with parsed JSON"
     columns:
       - name: image_id
