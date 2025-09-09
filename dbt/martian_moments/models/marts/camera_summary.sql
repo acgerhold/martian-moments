@@ -1,12 +1,12 @@
 {{ config(
     materialized='incremental',
-    unique_keys='rover_id',
-    cluster_by=['rover_name', 'sol'],
+    unique_keys=['name', 'sol', 'camera_names', 'cameras_used', 'total_photos'],
+    cluster_by=['name', 'sol'],
     tags='aggregate'
 ) }}
 
 SELECT 
-    dr.rover_name AS rover_name,
+    dr.rover_name AS name,
     fp.sol AS sol,
     LISTAGG(DISTINCT dc.camera_name, ', ') AS camera_names,
     COUNT(DISTINCT dc.camera_name, ', ') AS cameras_used,

@@ -1,12 +1,12 @@
 {{ config(
     materialized='incremental',
-    unique_keys='image_id',
-    cluster_by=['rover_name', 'sol'],
+    unique_keys=['name', 'sol', 'camera', 'camera_abv', 'total_photos'],
+    cluster_by=['name', 'sol'],
     tags='aggregate'
 ) }}
 
 SELECT 
-    dr.rover_name AS rover_name,
+    dr.rover_name AS name,
     fp.sol as sol,
     dc.camera_full_name AS camera,
     dc.camera_name AS camera_abv,
