@@ -1,6 +1,7 @@
 {{ config(
     materialized='view',
-    unique_keys='rover_id',
+    unique_keys='image_id',
+    tags='flatten'
 ) }}
 
 SELECT 
@@ -16,5 +17,6 @@ SELECT
     photo.value:camera.full_name::string as camera_full_name,
     photo.value:img_src::string as img_src,
     photo.value:id::int as image_id   
-FROM {{ source('MARS_BRONZE', 'RAW_PHOTO_RESPONSE') }} rpr,
-LATERAL FLATTEN(input => parse_json(rpr.photos)) as photo
+FROM 
+    {{ source('MARS_BRONZE', 'RAW_PHOTO_RESPONSE') }} rpr,
+    LATERAL FLATTEN(input => parse_json(rpr.photos)) AS photo

@@ -29,7 +29,7 @@ def mars_rover_photos_ingestion_batched_dag():
         )
         sols = Variable.get(
             "mars_sols", 
-            default_var=list(range(0, 1)), 
+            default_var=list(range(0, 99)), 
             deserialize_json=True
         )
         logger.info(f"'mars_rovers': {rovers} - 'mars_sols': {sols}")

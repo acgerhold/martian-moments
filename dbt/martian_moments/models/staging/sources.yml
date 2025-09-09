@@ -27,6 +27,30 @@ sources:
             tests:
               - not_null
               - unique
+      - name: FACT_PHOTOS
+        description: "Main fact table of images"
+        columns:
+          - name: image_id
+            description: "A photo's unique ID"
+            tests:
+              - not_null
+              - unique
+      - name: DIM_ROVERS
+        description: "Rover dimensions"
+        columns:
+          - name: rover_id
+            description: "A rovers's unique ID"
+            tests:
+              - not_null
+              - unique
+      - name: DIM_CAMERAS
+        description: "Camera dimensions"
+        columns:
+          - name: camera_id
+            description: "A camera's unique ID"
+            tests:
+              - not_null
+              - unique
 
 models:
   - name: flat_photo_response
