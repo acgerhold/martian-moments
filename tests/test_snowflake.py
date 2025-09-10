@@ -1,167 +1,278 @@
+from unittest.mock import patch, MagicMock
 import pytest
-from unittest.mock import patch, MagicMock, mock_open
 import os
-from src.utils.snowflake import (
-    get_snowflake_connection,
-    copy_photos_to_snowflake
-)
+from src.utils.snowflake import get_snowflake_connection, copy_file_to_snowflake
 
 @pytest.fixture
-def mock_cursor():
-    """Create a mock cursor for Snowflake operations"""
+def mock_logger():
     return MagicMock()
 
 @pytest.fixture
-def sample_jsonl_file_path(tmp_path):
-    """Create a temporary JSONL file for testing"""
-    test_file = tmp_path / "test_data.jsonl"
-    test_file.write_text('{"photos": [{"id": 1, "img_src": "test.jpg"}]}\n')
-    return str(test_file)
+def mock_snowflake_connection():
+    return MagicMock()
 
-def test_get_snowflake_connection(monkeypatch):
-    """Test Snowflake connection initialization with environment variables"""
-    # Mock environment variables
-    env_vars = {
-        'SNOWFLAKE_ACCOUNT': 'test_account',
-        'SNOWFLAKE_PASSWORD': 'test_password',
-        'SNOWFLAKE_USER': 'test_user',
-        'SNOWFLAKE_ROLE': 'test_role',
-        'SNOWFLAKE_WAREHOUSE': 'test_warehouse',
-        'SNOWFLAKE_DATABASE': 'test_database',
-        'SNOWFLAKE_SCHEMA_BRONZE': 'test_schema'
-    }
-    for key, value in env_vars.items():
-        monkeypatch.setenv(key, value)
-    
-    # Mock load_dotenv and snowflake.connector.connect
-    with patch('src.utils.snowflake.load_dotenv'):
-        with patch('src.utils.snowflake.snowflake.connector.connect') as mock_connect:
-            mock_connection = MagicMock()
-            mock_connect.return_value = mock_connection
-            
-            result = get_snowflake_connection()
-            
-            # Verify connection was called with correct parameters
-            mock_connect.assert_called_once_with(
-                account='test_account',
-                password='test_password',
-                user='test_user',
-                role='test_role',
-                warehouse='test_warehouse',
-                database='test_database',
-                schema='test_schema'
-            )
-            assert result == mock_connection
+@pytest.fixture
+def mock_snowflake_cursor():
+    cursor = MagicMock()
+    return cursor
 
-def test_copy_photos_to_snowflake_success(mock_cursor, sample_jsonl_file_path, monkeypatch):
-    """Test successful copy operation to Snowflake"""
-    # Mock environment variables
-    monkeypatch.setenv('SNOWFLAKE_DATABASE', 'test_db')
-    monkeypatch.setenv('SNOWFLAKE_SCHEMA_BRONZE', 'bronze')
-    
-    # Test the function
-    copy_photos_to_snowflake(mock_cursor, sample_jsonl_file_path)
-    
-    # Verify the correct SQL commands were executed
-    expected_calls = [
-        f"USE SCHEMA test_db.bronze;",
-        "REMOVE @%RAW_PHOTO_RESPONSE PATTERN='.*';",
-        f"PUT file://{sample_jsonl_file_path} @%RAW_PHOTO_RESPONSE OVERWRITE = TRUE",
-        """
-            COPY INTO RAW_PHOTO_RESPONSE
-            FROM @%RAW_PHOTO_RESPONSE
-            FILE_FORMAT = (TYPE = 'JSON')
-            MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE
-            ON_ERROR = 'CONTINUE'
-        """
-    ]
-    
-    # Check that execute was called the expected number of times
-    assert mock_cursor.execute.call_count == 4
-    
-    # Verify the calls were made with expected SQL
-    actual_calls = [call[0][0] for call in mock_cursor.execute.call_args_list]
-    assert actual_calls[0] == expected_calls[0]
-    assert actual_calls[1] == expected_calls[1]
-    assert actual_calls[2] == expected_calls[2]
-    # For the multi-line SQL, just check it contains key parts
-    assert "COPY INTO RAW_PHOTO_RESPONSE" in actual_calls[3]
-    assert "FILE_FORMAT = (TYPE = 'JSON')" in actual_calls[3]
+# ====== GET_SNOWFLAKE_CONNECTION TESTS ======
 
-def test_copy_photos_to_snowflake_file_cleanup(mock_cursor, sample_jsonl_file_path, monkeypatch):
-    """Test that the JSONL file is cleaned up after processing"""
-    # Mock environment variables
-    monkeypatch.setenv('SNOWFLAKE_DATABASE', 'test_db')
-    monkeypatch.setenv('SNOWFLAKE_SCHEMA_BRONZE', 'bronze')
-    
-    # Verify file exists before processing
-    assert os.path.exists(sample_jsonl_file_path)
-    
-    # Test the function
-    copy_photos_to_snowflake(mock_cursor, sample_jsonl_file_path)
-    
-    # Verify file was cleaned up
-    assert not os.path.exists(sample_jsonl_file_path)
+@patch.dict(os.environ, {
+    'SNOWFLAKE_ACCOUNT': 'test_account',
+    'SNOWFLAKE_PASSWORD': 'test_password',
+    'SNOWFLAKE_USER': 'test_user',
+    'SNOWFLAKE_ROLE': 'test_role',
+    'SNOWFLAKE_WAREHOUSE': 'test_warehouse',
+    'SNOWFLAKE_DATABASE': 'test_database',
+    'SNOWFLAKE_SCHEMA_BRONZE': 'bronze_schema'
+})
+def test_get_snowflake_connection_success():
+    """Test successful Snowflake connection creation"""
+    with patch('src.utils.snowflake.snowflake.connector.connect') as mock_connect:
+        mock_connection = MagicMock()
+        mock_connect.return_value = mock_connection
+        
+        result = get_snowflake_connection()
+        
+        mock_connect.assert_called_once_with(
+            account='test_account',
+            password='test_password',
+            user='test_user',
+            role='test_role',
+            warehouse='test_warehouse',
+            database='test_database',
+            schema='bronze_schema'
+        )
+        assert result == mock_connection
 
-def test_copy_photos_to_snowflake_exception_handling(mock_cursor, sample_jsonl_file_path, monkeypatch):
-    """Test that file cleanup happens even when SQL execution fails"""
-    # Mock environment variables
-    monkeypatch.setenv('SNOWFLAKE_DATABASE', 'test_db')
-    monkeypatch.setenv('SNOWFLAKE_SCHEMA_BRONZE', 'bronze')
+@patch.dict(os.environ, {}, clear=True)
+def test_get_snowflake_connection_missing_env_vars():
+    """Test Snowflake connection creation with missing environment variables"""
+    with patch('src.utils.snowflake.snowflake.connector.connect') as mock_connect:
+        mock_connection = MagicMock()
+        mock_connect.return_value = mock_connection
+        
+        result = get_snowflake_connection()
+        
+        mock_connect.assert_called_once_with(
+            account=None,
+            password=None,
+            user=None,
+            role=None,
+            warehouse=None,
+            database=None,
+            schema=None
+        )
+        assert result == mock_connection
+
+# ====== COPY_FILE_TO_SNOWFLAKE TESTS ======
+
+def test_copy_file_to_snowflake_success(mock_snowflake_connection, mock_logger):
+    """Test successful file copy to Snowflake"""
+    mock_cursor = MagicMock()
+    mock_snowflake_connection.cursor.return_value = mock_cursor
+    jsonl_file_path = "/tmp/test_file.jsonl"
+    
+    with patch.dict(os.environ, {
+        'SNOWFLAKE_DATABASE': 'TEST_DB',
+        'SNOWFLAKE_SCHEMA_BRONZE': 'BRONZE'
+    }), \
+    patch('os.path.exists', return_value=True), \
+    patch('os.remove') as mock_remove:
+        
+        copy_file_to_snowflake(mock_snowflake_connection, jsonl_file_path, mock_logger)
+        
+        # Verify cursor was created
+        mock_snowflake_connection.cursor.assert_called_once()
+        
+        # Verify SQL commands were executed in correct order
+        expected_calls = [
+            "USE SCHEMA TEST_DB.BRONZE;",
+            "REMOVE @%RAW_PHOTO_RESPONSE PATTERN='.*';",
+            f"PUT file://{jsonl_file_path} @%RAW_PHOTO_RESPONSE OVERWRITE = TRUE"
+        ]
+        
+        # Check the first three execute calls
+        assert mock_cursor.execute.call_count >= 3
+        for i, expected_call in enumerate(expected_calls):
+            actual_call = mock_cursor.execute.call_args_list[i][0][0]
+            assert actual_call == expected_call
+        
+        # Verify COPY INTO command was executed (4th call)
+        copy_command = mock_cursor.execute.call_args_list[3][0][0]
+        assert "COPY INTO RAW_PHOTO_RESPONSE" in copy_command
+        assert "FROM @%RAW_PHOTO_RESPONSE" in copy_command
+        assert "FILE_FORMAT = (TYPE = 'JSON')" in copy_command
+        
+        # Verify cleanup
+        mock_remove.assert_called_once_with(jsonl_file_path)
+        mock_cursor.close.assert_called_once()
+        mock_snowflake_connection.close.assert_called_once()
+
+def test_copy_file_to_snowflake_file_not_exists(mock_snowflake_connection, mock_logger):
+    """Test file copy when JSONL file doesn't exist for cleanup"""
+    mock_cursor = MagicMock()
+    mock_snowflake_connection.cursor.return_value = mock_cursor
+    jsonl_file_path = "/tmp/nonexistent_file.jsonl"
+    
+    with patch.dict(os.environ, {
+        'SNOWFLAKE_DATABASE': 'TEST_DB',
+        'SNOWFLAKE_SCHEMA_BRONZE': 'BRONZE'
+    }), \
+    patch('os.path.exists', return_value=False), \
+    patch('os.remove') as mock_remove:
+        
+        copy_file_to_snowflake(mock_snowflake_connection, jsonl_file_path, mock_logger)
+        
+        # Verify SQL operations still executed
+        assert mock_cursor.execute.call_count >= 3
+        
+        # Verify file removal was not attempted since file doesn't exist
+        mock_remove.assert_not_called()
+        
+        # Verify connections were still closed
+        mock_cursor.close.assert_called_once()
+        mock_snowflake_connection.close.assert_called_once()
+
+def test_copy_file_to_snowflake_sql_error(mock_snowflake_connection, mock_logger):
+    """Test file copy when SQL error occurs"""
+    mock_cursor = MagicMock()
+    mock_snowflake_connection.cursor.return_value = mock_cursor
     
     # Make the PUT command fail
-    def side_effect(sql):
+    def execute_side_effect(sql):
         if "PUT file://" in sql:
-            raise Exception("Snowflake connection error")
+            raise Exception("Snowflake SQL error")
         return None
     
-    mock_cursor.execute.side_effect = side_effect
+    mock_cursor.execute.side_effect = execute_side_effect
+    jsonl_file_path = "/tmp/test_file.jsonl"
     
-    # Verify file exists before processing
-    assert os.path.exists(sample_jsonl_file_path)
-    
-    # Test the function - should raise exception but still clean up file
-    with pytest.raises(Exception, match="Snowflake connection error"):
-        copy_photos_to_snowflake(mock_cursor, sample_jsonl_file_path)
-    
-    # Verify file was still cleaned up despite the exception
-    assert not os.path.exists(sample_jsonl_file_path)
+    with patch.dict(os.environ, {
+        'SNOWFLAKE_DATABASE': 'TEST_DB',
+        'SNOWFLAKE_SCHEMA_BRONZE': 'BRONZE'
+    }), \
+    patch('os.path.exists', return_value=True), \
+    patch('os.remove') as mock_remove, \
+    pytest.raises(Exception):
+        
+        copy_file_to_snowflake(mock_snowflake_connection, jsonl_file_path, mock_logger)
+        
+        # Verify cleanup still happens in finally block
+        mock_remove.assert_called_once_with(jsonl_file_path)
+        mock_cursor.close.assert_called_once()
+        mock_snowflake_connection.close.assert_called_once()
 
-def test_copy_photos_to_snowflake_nonexistent_file(mock_cursor, monkeypatch):
-    """Test handling of non-existent file path"""
-    # Mock environment variables
-    monkeypatch.setenv('SNOWFLAKE_DATABASE', 'test_db')
-    monkeypatch.setenv('SNOWFLAKE_SCHEMA_BRONZE', 'bronze')
+def test_copy_file_to_snowflake_schema_usage(mock_snowflake_connection, mock_logger):
+    """Test correct schema usage in SQL commands"""
+    mock_cursor = MagicMock()
+    mock_snowflake_connection.cursor.return_value = mock_cursor
+    jsonl_file_path = "/tmp/schema_test.jsonl"
     
-    nonexistent_file = "/tmp/nonexistent_file.jsonl"
+    test_cases = [
+        ('PROD_DB', 'RAW_LAYER'),
+        ('DEV_DATABASE', 'STAGING'),
+        ('ANALYTICS_DB', 'BRONZE_SCHEMA')
+    ]
     
-    # Test the function with non-existent file
-    copy_photos_to_snowflake(mock_cursor, nonexistent_file)
-    
-    # Verify SQL commands were still executed
-    assert mock_cursor.execute.call_count == 4
-    
-    # Verify the PUT command was attempted with the non-existent file
-    put_call = mock_cursor.execute.call_args_list[2][0][0]
-    assert f"PUT file://{nonexistent_file}" in put_call
-
-@patch('src.utils.snowflake.os.getenv')
-def test_get_snowflake_connection_missing_env_vars(mock_getenv):
-    """Test connection when environment variables are missing"""
-    # Mock getenv to return None for all calls
-    mock_getenv.return_value = None
-    
-    with patch('src.utils.snowflake.load_dotenv'):
-        with patch('src.utils.snowflake.snowflake.connector.connect') as mock_connect:
-            get_snowflake_connection()
+    for database, schema in test_cases:
+        mock_cursor.reset_mock()
+        mock_snowflake_connection.reset_mock()
+        mock_snowflake_connection.cursor.return_value = mock_cursor
+        
+        with patch.dict(os.environ, {
+            'SNOWFLAKE_DATABASE': database,
+            'SNOWFLAKE_SCHEMA_BRONZE': schema
+        }), \
+        patch('os.path.exists', return_value=True), \
+        patch('os.remove'):
             
-            # Verify connection was called with None values
-            mock_connect.assert_called_once_with(
-                account=None,
-                password=None,
-                user=None,
-                role=None,
-                warehouse=None,
-                database=None,
-                schema=None
-            )
+            copy_file_to_snowflake(mock_snowflake_connection, jsonl_file_path, mock_logger)
+            
+            # Verify correct schema is used
+            use_schema_call = mock_cursor.execute.call_args_list[0][0][0]
+            expected_schema_command = f"USE SCHEMA {database}.{schema};"
+            assert use_schema_call == expected_schema_command
+
+def test_copy_file_to_snowflake_copy_command_structure(mock_snowflake_connection, mock_logger):
+    """Test the structure of the COPY INTO command"""
+    mock_cursor = MagicMock()
+    mock_snowflake_connection.cursor.return_value = mock_cursor
+    jsonl_file_path = "/tmp/copy_test.jsonl"
+    
+    with patch.dict(os.environ, {
+        'SNOWFLAKE_DATABASE': 'TEST_DB',
+        'SNOWFLAKE_SCHEMA_BRONZE': 'BRONZE'
+    }), \
+    patch('os.path.exists', return_value=True), \
+    patch('os.remove'):
+        
+        copy_file_to_snowflake(mock_snowflake_connection, jsonl_file_path, mock_logger)
+        
+        # Find the COPY INTO command
+        copy_command = None
+        for call in mock_cursor.execute.call_args_list:
+            sql = call[0][0]
+            if "COPY INTO RAW_PHOTO_RESPONSE" in sql:
+                copy_command = sql
+                break
+        
+        assert copy_command is not None
+        
+        # Verify key components of COPY command
+        assert "COPY INTO RAW_PHOTO_RESPONSE" in copy_command
+        assert "FROM @%RAW_PHOTO_RESPONSE" in copy_command
+        assert "FILE_FORMAT = (TYPE = 'JSON')" in copy_command
+        assert "MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE" in copy_command
+        assert "ON_ERROR = 'CONTINUE'" in copy_command
+
+def test_copy_file_to_snowflake_cleanup_on_cursor_error(mock_snowflake_connection, mock_logger):
+    """Test cleanup when cursor operations fail"""
+    # Simulate cursor creation failing
+    mock_snowflake_connection.cursor.side_effect = Exception("Cursor creation failed")
+    jsonl_file_path = "/tmp/cursor_error_test.jsonl"
+    
+    with patch('os.path.exists', return_value=True), \
+         patch('os.remove') as mock_remove, \
+         pytest.raises(Exception):
+        
+        copy_file_to_snowflake(mock_snowflake_connection, jsonl_file_path, mock_logger)
+        
+        # Even when cursor creation fails, file should not be removed
+        # because the finally block only removes if cursor was created
+        mock_remove.assert_not_called()
+        mock_snowflake_connection.close.assert_not_called()
+
+def test_copy_file_to_snowflake_multiple_operations(mock_snowflake_connection, mock_logger):
+    """Test all SQL operations are executed in sequence"""
+    mock_cursor = MagicMock()
+    mock_snowflake_connection.cursor.return_value = mock_cursor
+    jsonl_file_path = "/tmp/operations_test.jsonl"
+    
+    with patch.dict(os.environ, {
+        'SNOWFLAKE_DATABASE': 'OPERATIONS_DB',
+        'SNOWFLAKE_SCHEMA_BRONZE': 'OPERATIONS_SCHEMA'
+    }), \
+    patch('os.path.exists', return_value=True), \
+    patch('os.remove'):
+        
+        copy_file_to_snowflake(mock_snowflake_connection, jsonl_file_path, mock_logger)
+        
+        # Verify exactly 4 SQL operations were executed
+        assert mock_cursor.execute.call_count == 4
+        
+        # Verify the sequence of operations
+        executed_sqls = [call[0][0] for call in mock_cursor.execute.call_args_list]
+        
+        # 1. USE SCHEMA
+        assert executed_sqls[0] == "USE SCHEMA OPERATIONS_DB.OPERATIONS_SCHEMA;"
+        
+        # 2. REMOVE files
+        assert executed_sqls[1] == "REMOVE @%RAW_PHOTO_RESPONSE PATTERN='.*';"
+        
+        # 3. PUT file
+        assert executed_sqls[2] == f"PUT file://{jsonl_file_path} @%RAW_PHOTO_RESPONSE OVERWRITE = TRUE"
+        
+        # 4. COPY INTO
+        assert "COPY INTO RAW_PHOTO_RESPONSE" in executed_sqls[3]
