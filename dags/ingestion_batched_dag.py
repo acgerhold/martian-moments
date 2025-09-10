@@ -10,50 +10,36 @@ from src.utils.minio import get_minio_client, upload_json_to_minio
 from src.utils.logger import setup_logger
 
 @dag(
-    dag_id="mars_rover_photos_ingestion_batched",
+    dag_id="mars_rover_photos_ingestion",
     start_date=datetime(2025, 1, 1),
     schedule=None,
     catchup=False,
     tags=["Ingestion", "Photos", "MinIO", "Batched"]
 )
-def mars_rover_photos_ingestion_batched_dag():
+def mars_rover_photos_ingestion_dag():
     
     @task
-    def get_ingestion_config():
-        logger = setup_logger('get_ingestion_config_task', 'ingestion_batched_dag.log', 'ingestion')
-     
-        logger.info("Creating tasks for DAG run")
-        tasks = generate_tasks_for_batch(BATCH_3)
-
-        logger.info(f"{len(tasks)} tasks scheduled for this DAG run")  
+    def generate_tasks_for_batch_task():
+        logger = setup_logger('get_ingestion_config_task', 'ingestion_batched_dag.log', 'ingestion')     
+        tasks = generate_tasks_for_batch(BATCH_3, logger)  
         return tasks
 
     @task
-    def fetch_and_collect_rover_photos(rover: str, sol: int):
-        logger = setup_logger('fetch_and_collect_rover_photos_task', 'ingestion_batched_dag.log', 'ingestion')
-            
-        logger.info(f"Fetching photos for {rover} on sol {sol}")    
+    def fetch_and_collect_rover_photos_task(rover: str, sol: int):
+        logger = setup_logger('fetch_and_collect_rover_photos_task', 'ingestion_batched_dag.log', 'ingestion')            
         photos_result = extract_photos_from_nasa(rover, sol, logger)
-
-        logger.info(f"Fetched {len(photos_result.get('photos', []))} photos for {rover} on sol {sol}")        
         return photos_result
 
     @task
-    def create_combined_batch_file(all_rover_photos_results: list):
+    def create_combined_batch_file_task(all_rover_photos_results: list):
         logger = setup_logger('create_combined_batch_file_task', 'ingestion_batched_dag.log', 'ingestion')
-
-        logger.info("Creating final batch .json and MinIO output path")
-        all_rover_photos_results = list(all_rover_photos_results)
-        final_json = create_final_batch_json(BATCH_3, all_rover_photos_results)
-        
-        logger.info("Uploading to MinIO")        
+        final_json = create_final_batch_json(BATCH_3, all_rover_photos_results, logger)
         minio_client = get_minio_client()
-        upload_json_to_minio(minio_client, final_json)
+        upload_json_to_minio(minio_client, final_json, logger)
 
-        logger.info(f"Stored {final_json['photo_count']} total photos across {len(all_rover_photos_results)} rover/sol combinations")
 
-    config = get_ingestion_config()
-    all_rover_photos_results = fetch_and_collect_rover_photos.expand_kwargs(config)
-    create_combined_batch_file(all_rover_photos_results)
+    config = generate_tasks_for_batch_task()
+    all_rover_photos_results = fetch_and_collect_rover_photos_task.expand_kwargs(config)
+    create_combined_batch_file_task(all_rover_photos_results)
 
-dag = mars_rover_photos_ingestion_batched_dag()
+dag = mars_rover_photos_ingestion_dag()

@@ -17,16 +17,19 @@ def get_minio_client():
 
     return minio_client
 
-def upload_json_to_minio(minio_client, final_json):
+def upload_json_to_minio(minio_client, final_json, logger):
     bucket = os.getenv('MINIO_BUCKET')
 
     if not minio_client.bucket_exists(bucket):
         minio_client.make_bucket(bucket)
 
-    minio_filepath = f"photos/{final_json['filename']}"
+    filename = final_json['filename']
+    minio_filepath = f"photos/{filename}"
 
     data_bytes = json.dumps(final_json).encode("utf-8")
     data_stream = BytesIO(data_bytes)
+
+    logger.info(f"Uploading to MinIO - File: {filename}, Photos: {final_json['photo_count']}")
     minio_client.put_object(
         bucket_name=bucket,
         object_name=minio_filepath,
