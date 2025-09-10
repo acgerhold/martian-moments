@@ -23,7 +23,7 @@ def mars_rover_photos_ingestion_batched_dag():
         logger = setup_logger('get_ingestion_config_task', 'ingestion_batched_dag.log', 'ingestion')
      
         logger.info("Creating tasks for DAG run")
-        tasks = generate_tasks_for_batch(BATCH_2)
+        tasks = generate_tasks_for_batch(BATCH_3)
 
         logger.info(f"{len(tasks)} tasks scheduled for this DAG run")  
         return tasks
@@ -44,7 +44,7 @@ def mars_rover_photos_ingestion_batched_dag():
 
         logger.info("Creating final batch .json and MinIO output path")
         all_rover_photos_results = list(all_rover_photos_results)
-        final_json = create_final_batch_json(BATCH_2, all_rover_photos_results)
+        final_json = create_final_batch_json(BATCH_3, all_rover_photos_results)
         
         logger.info("Uploading to MinIO")        
         minio_client = get_minio_client()
