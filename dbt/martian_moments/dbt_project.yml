@@ -16,6 +16,9 @@ clean-targets:
 
 models:
   martian_moments:
+    marts:
+      +schema: GOLD
+      +materialized: incremental
     staging:
       +schema: SILVER
       +materialized: view

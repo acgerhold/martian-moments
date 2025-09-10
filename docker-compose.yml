@@ -30,6 +30,7 @@ x-airflow-common:
     - ./logs:/opt/airflow/logs
     - ./plugins:/opt/airflow/plugins
     - ./src:/opt/airflow/src
+    - ./dbt:/opt/airflow/dbt
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on: &airflow-common-depends-on
     postgres:
@@ -259,28 +260,6 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
-  cubejs:
-    image: cubejs/cube:latest
-    container_name: cube_mars
-    ports:
-      - "4000:4000"
-      - "15432:15432"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4000/readyz"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    env_file:
-      - .env
-    volumes:
-      - .:/cube/conf
-    depends_on:
-      postgres: 
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    restart: always
-
   metabase:
     image: metabase/metabase:latest
     container_name: metabase_mars
@@ -291,7 +270,7 @@ services:
     volumes:
       - metabase-data:/metabase-data
     depends_on:
-      cubejs: 
+      minio: 
         condition: service_healthy
     restart: always
 

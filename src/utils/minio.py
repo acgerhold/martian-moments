@@ -3,9 +3,8 @@ from io import BytesIO
 from minio import Minio
 import tempfile
 import json
-from dotenv import load_dotenv
 
-load_dotenv()
+from src.config import MINIO_BUCKET
 
 def get_minio_client():
     minio_client = Minio(
@@ -17,31 +16,33 @@ def get_minio_client():
 
     return minio_client
 
-def upload_json_to_minio(minio_client, minio_filepath, data):
-    bucket = os.getenv('MINIO_BUCKET')
+def upload_json_to_minio(minio_client, final_json, logger):
 
-    if not minio_client.bucket_exists(bucket):
-        minio_client.make_bucket(bucket)
+    if not minio_client.bucket_exists(MINIO_BUCKET):
+        minio_client.make_bucket(MINIO_BUCKET)
 
-    data_bytes = json.dumps(data).encode("utf-8")
+    filename = final_json['filename']
+    minio_filepath = f"photos/{filename}"
+
+    data_bytes = json.dumps(final_json).encode("utf-8")
     data_stream = BytesIO(data_bytes)
+
+    logger.info(f"Uploading to MinIO - File: {filename}, Photos: {final_json['photo_count']}")
     minio_client.put_object(
-        bucket_name=bucket,
+        bucket_name=MINIO_BUCKET,
         object_name=minio_filepath,
         data=data_stream,
         length=len(data_bytes),
         content_type="application/json"
     )    
 
-    return print("Potential Kafka Event")
-
-def extract_json_as_jsonl_from_minio(minio_client, minio_filepath):
-    bucket = os.getenv('MINIO_BUCKET')
+def extract_json_as_jsonl_from_minio(minio_client, minio_filepath, logger):
     tmp_dir = tempfile.gettempdir()
-    minio_filepath = minio_filepath.replace(f"{bucket}/", "", 1)
-    
+    minio_filepath = minio_filepath.replace(f"{MINIO_BUCKET}/", "", 1)
     tmp_filepath = os.path.join(tmp_dir, os.path.basename(minio_filepath))
-    minio_client.fget_object(bucket, minio_filepath, tmp_filepath)
+
+    minio_client.fget_object(MINIO_BUCKET, minio_filepath, tmp_filepath)
+    logger.info(f"Extracted from MinIO - File: {minio_filepath}")
     
     with open(tmp_filepath, 'r') as f:
         data = json.load(f)
@@ -52,4 +53,5 @@ def extract_json_as_jsonl_from_minio(minio_client, minio_filepath):
     
     os.remove(tmp_filepath)
     
+    logger.info(f"Stored file - Path: {jsonl_path}")
     return jsonl_path
