@@ -1,6 +1,6 @@
 {{ config(
     materialized='incremental',
-    unique_keys=['name', 'status', 'launch_date', 'landing_date', 'max_sol', 'max_date', 'total_photos'],
+    unique_keys=['name', 'launch_date', 'landing_date'],
     cluster_by='name',
     tags='aggregate'
 ) }}

@@ -17,13 +17,15 @@ def get_minio_client():
 
     return minio_client
 
-def upload_json_to_minio(minio_client, minio_filepath, data):
+def upload_json_to_minio(minio_client, final_json):
     bucket = os.getenv('MINIO_BUCKET')
 
     if not minio_client.bucket_exists(bucket):
         minio_client.make_bucket(bucket)
 
-    data_bytes = json.dumps(data).encode("utf-8")
+    minio_filepath = f"photos/{final_json['filename']}"
+
+    data_bytes = json.dumps(final_json).encode("utf-8")
     data_stream = BytesIO(data_bytes)
     minio_client.put_object(
         bucket_name=bucket,
@@ -32,8 +34,6 @@ def upload_json_to_minio(minio_client, minio_filepath, data):
         length=len(data_bytes),
         content_type="application/json"
     )    
-
-    return print("Potential Kafka Event")
 
 def extract_json_as_jsonl_from_minio(minio_client, minio_filepath):
     bucket = os.getenv('MINIO_BUCKET')

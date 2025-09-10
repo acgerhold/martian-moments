@@ -13,7 +13,7 @@ from src.utils.logger import setup_logger
     start_date=datetime(2025, 1, 1),
     schedule=None,
     catchup=False,
-    tags=["nasa", "photos", "ingestion", "single"]
+    tags=["Ingestion", "Photos", "MinIO", "Single"]
 )
 def mars_rover_photos_ingestion_dag():
     

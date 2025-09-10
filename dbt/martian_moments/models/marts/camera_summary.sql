@@ -1,6 +1,6 @@
 {{ config(
     materialized='incremental',
-    unique_keys=['name', 'sol', 'camera_names', 'cameras_used', 'total_photos'],
+    unique_key=['name', sol, camera_names],
     cluster_by=['name', 'sol'],
     tags='aggregate'
 ) }}

@@ -29,7 +29,10 @@ kafka_topic_asset = Asset(
     name="kafka_topic_asset", watchers=[AssetWatcher(name="kafka_watcher", trigger=trigger)]
 )
 
-@dag(schedule=[kafka_topic_asset])
+@dag(
+    schedule=[kafka_topic_asset],
+    tags=["Loading", "Kafka", "MinIO", "Snowflake"]
+)
 def load_photos_to_snowflake_dag():
     
     @task
