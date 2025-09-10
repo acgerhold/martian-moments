@@ -1,7 +1,8 @@
 {{ config(
     materialized='incremental',
-    unique_keys=['name', 'sol', 'camera', 'camera_abv'],
-    cluster_by=['name', 'sol'],
+    unique_key=['name', 'sol', 'camera'],
+    incremental_strategy='merge',
+    cluster_by=['name', 'sol', 'camera'],
     tags='aggregate'
 ) }}
 
