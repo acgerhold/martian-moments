@@ -14,6 +14,9 @@ MINIO_BUCKET = os.getenv('MINIO_BUCKET')
 
 BATCH_1 = list(range(0,250))
 BATCH_2 = list(range(250, 300))
-BATCH_3 = list(range(375, 380))
+BATCH_3 = list(range(400, 405))
+
+LOAD_COMPLETE_TOPIC = "snowflake-load-complete"
 
 DBT_PROJECT_DIR = "/opt/airflow/dbt/martian_moments"
+GOLD_TAG = "aggregate"

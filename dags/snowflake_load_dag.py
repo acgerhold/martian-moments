@@ -4,9 +4,10 @@ import sys
 
 sys.path.append('/opt/airflow')
 from src.utils.minio import get_minio_client, extract_json_as_jsonl_from_minio
-from src.utils.kafka import parse_message, extract_filepath_from_message
+from src.utils.kafka import parse_message, extract_filepath_from_message, produce_kafka_message, generate_load_complete_message
 from src.utils.snowflake import get_snowflake_connection, copy_file_to_snowflake
 from src.utils.logger import setup_logger
+from src.config import LOAD_COMPLETE_TOPIC
 
 def apply_function(*args, **kwargs):
     logger = setup_logger('apply_function_task', 'snowflake_load_dag.log', 'loading')
@@ -37,6 +38,8 @@ def load_photos_to_snowflake_dag():
         photos_data_jsonl_path = extract_json_as_jsonl_from_minio(minio_client, minio_filepath, logger)        
         snowflake_connection = get_snowflake_connection()
         copy_file_to_snowflake(snowflake_connection, photos_data_jsonl_path, logger)
+        event_message = generate_load_complete_message(minio_filepath, logger)
+        produce_kafka_message(LOAD_COMPLETE_TOPIC, event_message, logger)
 
     load_to_snowflake_task()
 
