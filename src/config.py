@@ -14,8 +14,9 @@ MINIO_BUCKET = os.getenv('MINIO_BUCKET')
 
 BATCH_1 = list(range(0,250))
 BATCH_2 = list(range(250, 300))
-BATCH_3 = list(range(405, 410))
+BATCH_3 = list(range(410, 415))
 
+MINIO_EVENTS_TOPIC = "minio-events"
 LOAD_COMPLETE_TOPIC = "snowflake-load-complete"
 
 DBT_PROJECT_DIR = "/opt/airflow/dbt/martian_moments"

@@ -49,7 +49,7 @@ def generate_load_complete_message(minio_filepath, logger):
     logger.info(f"Attempting to generate load complete message - Path: {minio_filepath}")
     message = {
         "filepath": minio_filepath,
-        "status": "success",
+        "event": "success",
         "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
     }
 

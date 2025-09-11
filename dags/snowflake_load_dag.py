@@ -7,7 +7,7 @@ from src.utils.minio import get_minio_client, extract_json_as_jsonl_from_minio
 from src.utils.kafka import parse_message, extract_filepath_from_message, produce_kafka_message, generate_load_complete_message
 from src.utils.snowflake import get_snowflake_connection, copy_file_to_snowflake
 from src.utils.logger import setup_logger
-from src.config import LOAD_COMPLETE_TOPIC
+from src.config import MINIO_EVENTS_TOPIC, LOAD_COMPLETE_TOPIC
 
 def apply_function(*args, **kwargs):
     logger = setup_logger('apply_function_task', 'snowflake_load_dag.log', 'loading')
@@ -15,17 +15,17 @@ def apply_function(*args, **kwargs):
     return filepath
 
 trigger = MessageQueueTrigger(
-    queue="kafka://kafka:9092/minio-events",
+    queue=f"kafka://kafka:9092/{MINIO_EVENTS_TOPIC}",
     apply_function="snowflake_load_dag.apply_function"
 )
 
-kafka_topic_asset = Asset(
-    name="kafka_topic_asset", watchers=[AssetWatcher(name="kafka_watcher", trigger=trigger)]
+minio_events_asset = Asset(
+    name="minio_events_topic_asset", watchers=[AssetWatcher(name="minio_events_watcher", trigger=trigger)]
 )
 
 @dag(
     dag_id="load_to_snowflake",
-    schedule=[kafka_topic_asset],
+    schedule=[minio_events_asset],
     tags=["Loading", "Kafka", "MinIO", "Snowflake"]
 )
 def load_photos_to_snowflake_dag():
@@ -33,7 +33,7 @@ def load_photos_to_snowflake_dag():
     @task
     def extract_filepath_from_message_task(triggering_asset_events=None):
         logger = setup_logger('extract_filepath_from_message_task', 'snowflake_load_dag.log', 'loading')
-        minio_filepath = extract_filepath_from_message(triggering_asset_events[kafka_topic_asset], logger)
+        minio_filepath = extract_filepath_from_message(triggering_asset_events[minio_events_asset], logger)
         return minio_filepath
 
     @task
