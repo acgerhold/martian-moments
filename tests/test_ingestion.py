@@ -1,7 +1,7 @@
 from unittest.mock import patch, MagicMock
 import pytest
 import requests
-from src.ingestion import extract_photos_from_nasa, create_final_batch_json, generate_tasks_for_batch
+from src.ingestion.photos import extract_photos_from_nasa, create_final_batch_json, generate_tasks_for_batch
 
 @pytest.fixture
 def mock_logger():

@@ -3,9 +3,9 @@ from datetime import datetime, timezone
 import sys
 
 sys.path.append('/opt/airflow')
-from src.ingestion import extract_photos_from_nasa, create_final_batch_json, generate_tasks_for_batch
-from src.config import BATCH_1, BATCH_2, BATCH_3
-from src.utils.minio import get_minio_client, upload_json_to_minio
+from src.ingestion.photos import extract_photos_from_nasa, create_final_photos_json, generate_tasks_for_photos_batch
+from src.config import MARS_ROVERS, SOL_BATCH
+from src.utils.minio import upload_json_to_minio
 from src.utils.logger import setup_logger
 
 @dag(
@@ -13,14 +13,14 @@ from src.utils.logger import setup_logger
     start_date=datetime(2025, 1, 1),
     schedule=None,
     catchup=False,
-    tags=["Ingestion", "Photos", "MinIO", "Batched"]
+    tags=["Ingestion", "Photos", "MinIO"]
 )
 def mars_rover_photos_ingestion_dag():
     
     @task
     def generate_tasks_for_batch_task():
         logger = setup_logger('get_ingestion_config_task', 'photo_ingestion_dag.log', 'ingestion')     
-        tasks = generate_tasks_for_batch(BATCH_3, logger)  
+        tasks = generate_tasks_for_photos_batch(MARS_ROVERS, SOL_BATCH, logger)  
         return tasks
 
     @task
@@ -30,14 +30,14 @@ def mars_rover_photos_ingestion_dag():
         return photos_result
 
     @task
-    def create_combined_batch_file_task(all_rover_photos_results: list):
+    def create_combined_batch_file_task(all_rover_photo_results: list):
         logger = setup_logger('create_combined_batch_file_task', 'photo_ingestion_dag.log', 'ingestion')
-        final_json = create_final_batch_json(BATCH_3, all_rover_photos_results, logger)
-        minio_client = get_minio_client()
-        upload_json_to_minio(minio_client, final_json, logger)
+        final_photos_json = create_final_photos_json(SOL_BATCH, all_rover_photo_results, logger)
+        upload_json_to_minio(final_photos_json, logger)
+
 
     config = generate_tasks_for_batch_task()
-    all_rover_photos_results = fetch_and_collect_rover_photos_task.expand_kwargs(config)
-    create_combined_batch_file_task(all_rover_photos_results)
+    all_rover_photo_results = fetch_and_collect_rover_photos_task.expand_kwargs(config)
+    create_combined_batch_file_task(all_rover_photo_results)
 
 dag = mars_rover_photos_ingestion_dag()

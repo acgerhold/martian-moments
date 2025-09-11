@@ -16,6 +16,5 @@ jobs:
           message: |
             🚀 **Martian Moments Update**
             
-            **${{ steps.pr.outputs.pr_title || github.event.head_commit.message }}**
-                        
+            **${{ steps.pr.outputs.pr_title || github.event.head_commit.message }}**                        
             🔗 **[View Changes](${{ github.event.head_commit.url }})**

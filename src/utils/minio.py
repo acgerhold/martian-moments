@@ -16,13 +16,20 @@ def get_minio_client():
 
     return minio_client
 
-def upload_json_to_minio(minio_client, final_json, logger):
+def upload_json_to_minio(final_json, logger):
     logger.info(f"Attempting upload to MinIO - {final_json['filename']}")
+    minio_client = get_minio_client()
     if not minio_client.bucket_exists(MINIO_BUCKET):
         minio_client.make_bucket(MINIO_BUCKET)
 
     filename = final_json['filename']
-    minio_filepath = f"photos/{filename}"
+    match filename:
+        case name if name.startswith("mars_rover_photos"):
+            minio_filepath = f"photos/{filename}"
+        case name if name.startswith("mars_rover_coordinates"):
+            minio_filepath = f"coordinates/{filename}"
+        case _:
+            minio_filepath = f"{filename}"
 
     data_bytes = json.dumps(final_json).encode("utf-8")
     data_stream = BytesIO(data_bytes)
@@ -34,9 +41,10 @@ def upload_json_to_minio(minio_client, final_json, logger):
         length=len(data_bytes),
         content_type="application/json"
     )
-    logger.info(f"Uploaded to MinIO - File: {filename}, Photos Count: {final_json['photo_count']}")    
+    logger.info(f"Uploaded to MinIO - File: {filename}")    
 
-def extract_json_as_jsonl_from_minio(minio_client, minio_filepath, logger):
+def extract_json_as_jsonl_from_minio(minio_filepath, logger):
+    minio_client = get_minio_client()
     logger.info(f"Attempting extract from MinIO - Path: {minio_filepath}")
     tmp_dir = tempfile.gettempdir()
     minio_filepath = minio_filepath.replace(f"{MINIO_BUCKET}/", "", 1)

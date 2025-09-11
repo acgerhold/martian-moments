@@ -39,15 +39,13 @@ def load_photos_to_snowflake_dag():
     @task
     def extract_json_as_jsonl_from_minio_task(minio_filepath):
         logger = setup_logger('extract_json_as_jsonl_from_minio_task', 'snowflake_load_dag.log', 'loading')
-        minio_client = get_minio_client()
-        photos_data_jsonl_path = extract_json_as_jsonl_from_minio(minio_client, minio_filepath, logger)
-        return photos_data_jsonl_path        
+        jsonl_path = extract_json_as_jsonl_from_minio(minio_filepath, logger)
+        return jsonl_path        
 
     @task
     def load_to_snowflake_task(tmp_jsonl_filepath):
         logger = setup_logger('load_to_snowflake_task', 'snowflake_load_dag.log', 'loading')      
-        snowflake_connection = get_snowflake_connection()
-        copy_file_to_snowflake(snowflake_connection, tmp_jsonl_filepath, logger)
+        copy_file_to_snowflake(tmp_jsonl_filepath, logger)
         return tmp_jsonl_filepath
     
     @task
