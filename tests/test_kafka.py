@@ -1,8 +1,9 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 import pytest
 import json
 import urllib.parse
-from src.utils.kafka import parse_message, extract_filepath_from_message
+from datetime import datetime, timezone
+from src.utils.kafka import parse_message, extract_filepath_from_message, produce_kafka_message, generate_load_complete_message
 
 @pytest.fixture
 def mock_logger():
@@ -146,7 +147,7 @@ def test_extract_filepath_from_message_success(mock_logger):
     # Verify logging
     assert mock_logger.info.call_count == 2
     log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
-    assert any("Message:" in msg for msg in log_calls)
+    assert any("Attempting to extract filepath" in msg for msg in log_calls)
     assert any("Filepath extracted" in msg and test_filepath in msg for msg in log_calls)
 
 def test_extract_filepath_from_message_no_filepath(mock_logger):
@@ -272,5 +273,249 @@ def test_extract_filepath_from_message_complex_payload(mock_logger):
     
     # Verify logging includes the complex event
     log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
-    assert any("Message:" in msg for msg in log_calls)
+    assert any("Attempting to extract filepath" in msg for msg in log_calls)
     assert any("Filepath extracted" in msg and test_filepath in msg for msg in log_calls)
+
+# ====== PRODUCE_KAFKA_MESSAGE TESTS ======
+
+@patch('src.utils.kafka.KafkaProducer')
+def test_produce_kafka_message_success(mock_kafka_producer_class, mock_logger):
+    """Test successful Kafka message production"""
+    # Setup mock producer instance
+    mock_producer = MagicMock()
+    mock_kafka_producer_class.return_value = mock_producer
+    
+    test_topic = "test-topic"
+    test_message = {"event": "test", "data": "sample"}
+    
+    produce_kafka_message(test_topic, test_message, mock_logger)
+    
+    # Verify KafkaProducer was initialized correctly
+    mock_kafka_producer_class.assert_called_once_with(
+        bootstrap_servers='kafka:9092',
+        value_serializer=mock_kafka_producer_class.call_args[1]['value_serializer']
+    )
+    
+    # Test the serializer function
+    serializer = mock_kafka_producer_class.call_args[1]['value_serializer']
+    serialized = serializer(test_message)
+    assert serialized == json.dumps(test_message).encode('utf-8')
+    
+    # Verify producer methods were called
+    mock_producer.send.assert_called_once_with(test_topic, value=test_message)
+    mock_producer.flush.assert_called_once()
+    mock_producer.close.assert_called_once()
+    
+    # Verify logging
+    assert mock_logger.info.call_count == 2
+    log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
+    assert any("Attempting to produce event" in msg and test_topic in msg for msg in log_calls)
+    assert any("Produced message" in msg and test_topic in msg for msg in log_calls)
+
+@patch('src.utils.kafka.KafkaProducer')
+def test_produce_kafka_message_send_failure(mock_kafka_producer_class, mock_logger):
+    """Test Kafka message production when send fails"""
+    # Setup mock producer instance that fails on send
+    mock_producer = MagicMock()
+    mock_producer.send.side_effect = Exception("Send failed")
+    mock_kafka_producer_class.return_value = mock_producer
+    
+    test_topic = "test-topic"
+    test_message = {"event": "test", "data": "sample"}
+    
+    with pytest.raises(Exception, match="Send failed"):
+        produce_kafka_message(test_topic, test_message, mock_logger)
+    
+    # Verify producer methods were called
+    mock_producer.send.assert_called_once_with(test_topic, value=test_message)
+    # flush should not be called if send fails
+    mock_producer.flush.assert_not_called()
+    # close should still be called in finally block
+    mock_producer.close.assert_called_once()
+    
+    # Verify error logging
+    mock_logger.error.assert_called_once()
+    error_msg = mock_logger.error.call_args[0][0]
+    assert "Failed to produce message" in error_msg
+    assert test_topic in error_msg
+
+@patch('src.utils.kafka.KafkaProducer')
+def test_produce_kafka_message_flush_failure(mock_kafka_producer_class, mock_logger):
+    """Test Kafka message production when flush fails"""
+    # Setup mock producer instance that fails on flush
+    mock_producer = MagicMock()
+    mock_producer.flush.side_effect = Exception("Flush failed")
+    mock_kafka_producer_class.return_value = mock_producer
+    
+    test_topic = "test-topic"
+    test_message = {"event": "test", "data": "sample"}
+    
+    with pytest.raises(Exception, match="Flush failed"):
+        produce_kafka_message(test_topic, test_message, mock_logger)
+    
+    # Verify producer methods were called
+    mock_producer.send.assert_called_once_with(test_topic, value=test_message)
+    mock_producer.flush.assert_called_once()
+    # close should still be called in finally block
+    mock_producer.close.assert_called_once()
+    
+    # Verify error logging
+    mock_logger.error.assert_called_once()
+    error_msg = mock_logger.error.call_args[0][0]
+    assert "Failed to produce message" in error_msg
+    assert test_topic in error_msg
+
+@patch('src.utils.kafka.KafkaProducer')
+def test_produce_kafka_message_complex_data(mock_kafka_producer_class, mock_logger):
+    """Test Kafka message production with complex message data"""
+    # Setup mock producer instance
+    mock_producer = MagicMock()
+    mock_kafka_producer_class.return_value = mock_producer
+    
+    test_topic = "complex-topic"
+    complex_message = {
+        "filepath": "photos/mars_rover_photos_batch_sol_100.json",
+        "event": "load_complete",
+        "timestamp": "2025-09-11T10:30:00",
+        "metadata": {
+            "size": 2048,
+            "rover": "Curiosity",
+            "sol": 100
+        }
+    }
+    
+    produce_kafka_message(test_topic, complex_message, mock_logger)
+    
+    # Verify producer was called with complex message
+    mock_producer.send.assert_called_once_with(test_topic, value=complex_message)
+    mock_producer.flush.assert_called_once()
+    mock_producer.close.assert_called_once()
+    
+    # Test serializer with complex data
+    serializer = mock_kafka_producer_class.call_args[1]['value_serializer']
+    serialized = serializer(complex_message)
+    expected = json.dumps(complex_message).encode('utf-8')
+    assert serialized == expected
+
+# ====== GENERATE_LOAD_COMPLETE_MESSAGE TESTS ======
+
+def test_generate_load_complete_message_success(mock_logger):
+    """Test successful load complete message generation"""
+    test_filepath = "/tmp/mars_rover_photos_batch_sol_150.jsonl"
+    
+    with patch('src.utils.kafka.datetime') as mock_datetime:
+        # Mock the datetime to return a fixed time
+        fixed_time = datetime(2025, 9, 11, 10, 30, 45, tzinfo=timezone.utc)
+        mock_datetime.now.return_value = fixed_time
+        mock_datetime.timezone = timezone
+        
+        result = generate_load_complete_message(test_filepath, mock_logger)
+    
+    expected_message = {
+        "filepath": test_filepath,
+        "event": "success",
+        "timestamp": "2025-09-11T10:30:45"
+    }
+    
+    assert result == expected_message
+    
+    # Verify logging
+    assert mock_logger.info.call_count == 2
+    log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
+    assert any("Attempting to generate load complete message" in msg and test_filepath in msg for msg in log_calls)
+    assert any("Message produced" in msg for msg in log_calls)
+
+def test_generate_load_complete_message_different_filepath(mock_logger):
+    """Test load complete message generation with different filepath"""
+    test_filepath = "/opt/airflow/tmp/curiosity_sol_200.jsonl"
+    
+    with patch('src.utils.kafka.datetime') as mock_datetime:
+        # Mock different timestamp
+        fixed_time = datetime(2025, 12, 25, 23, 59, 59, tzinfo=timezone.utc)
+        mock_datetime.now.return_value = fixed_time
+        mock_datetime.timezone = timezone
+        
+        result = generate_load_complete_message(test_filepath, mock_logger)
+    
+    expected_message = {
+        "filepath": test_filepath,
+        "event": "success",
+        "timestamp": "2025-12-25T23:59:59"
+    }
+    
+    assert result == expected_message
+    assert result["filepath"] == test_filepath
+    assert result["event"] == "success"
+    assert result["timestamp"] == "2025-12-25T23:59:59"
+
+def test_generate_load_complete_message_empty_filepath(mock_logger):
+    """Test load complete message generation with empty filepath"""
+    test_filepath = ""
+    
+    with patch('src.utils.kafka.datetime') as mock_datetime:
+        fixed_time = datetime(2025, 9, 11, 12, 0, 0, tzinfo=timezone.utc)
+        mock_datetime.now.return_value = fixed_time
+        mock_datetime.timezone = timezone
+        
+        result = generate_load_complete_message(test_filepath, mock_logger)
+    
+    expected_message = {
+        "filepath": "",
+        "event": "success",
+        "timestamp": "2025-09-11T12:00:00"
+    }
+    
+    assert result == expected_message
+    
+    # Should still log appropriately
+    assert mock_logger.info.call_count == 2
+
+def test_generate_load_complete_message_none_filepath(mock_logger):
+    """Test load complete message generation with None filepath"""
+    test_filepath = None
+    
+    with patch('src.utils.kafka.datetime') as mock_datetime:
+        fixed_time = datetime(2025, 9, 11, 15, 45, 30, tzinfo=timezone.utc)
+        mock_datetime.now.return_value = fixed_time
+        mock_datetime.timezone = timezone
+        
+        result = generate_load_complete_message(test_filepath, mock_logger)
+    
+    expected_message = {
+        "filepath": None,
+        "event": "success",
+        "timestamp": "2025-09-11T15:45:30"
+    }
+    
+    assert result == expected_message
+    assert result["filepath"] is None
+    assert result["event"] == "success"
+
+def test_generate_load_complete_message_timestamp_format(mock_logger):
+    """Test that timestamp format is consistent and correct"""
+    test_filepath = "/tmp/test.jsonl"
+    
+    with patch('src.utils.kafka.datetime') as mock_datetime:
+        # Test edge case timestamps
+        test_cases = [
+            datetime(2025, 1, 1, 0, 0, 0, tzinfo=timezone.utc),  # New year
+            datetime(2025, 12, 31, 23, 59, 59, tzinfo=timezone.utc),  # End of year
+            datetime(2025, 6, 15, 12, 30, 45, tzinfo=timezone.utc),  # Mid year
+        ]
+        
+        for i, fixed_time in enumerate(test_cases):
+            mock_datetime.now.return_value = fixed_time
+            mock_datetime.timezone = timezone
+            
+            result = generate_load_complete_message(test_filepath, mock_logger)
+            
+            # Verify timestamp format
+            timestamp = result["timestamp"]
+            assert len(timestamp) == 19  # YYYY-MM-DDTHH:MM:SS format
+            assert "T" in timestamp
+            assert timestamp.count("-") == 2  # Two dashes in date
+            assert timestamp.count(":") == 2  # Two colons in time
+            
+            # Verify it matches expected format
+            expected_timestamp = fixed_time.strftime("%Y-%m-%dT%H:%M:%S")
+            assert result["timestamp"] == expected_timestamp

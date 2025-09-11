@@ -4,9 +4,10 @@ import sys
 
 sys.path.append('/opt/airflow')
 from src.utils.minio import get_minio_client, extract_json_as_jsonl_from_minio
-from src.utils.kafka import parse_message, extract_filepath_from_message
+from src.utils.kafka import parse_message, extract_filepath_from_message, produce_kafka_message, generate_load_complete_message
 from src.utils.snowflake import get_snowflake_connection, copy_file_to_snowflake
 from src.utils.logger import setup_logger
+from src.config import MINIO_EVENTS_TOPIC, LOAD_COMPLETE_TOPIC
 
 def apply_function(*args, **kwargs):
     logger = setup_logger('apply_function_task', 'snowflake_load_dag.log', 'loading')
@@ -14,30 +15,51 @@ def apply_function(*args, **kwargs):
     return filepath
 
 trigger = MessageQueueTrigger(
-    queue="kafka://kafka:9092/minio-events",
+    queue=f"kafka://kafka:9092/{MINIO_EVENTS_TOPIC}",
     apply_function="snowflake_load_dag.apply_function"
 )
 
-kafka_topic_asset = Asset(
-    name="kafka_topic_asset", watchers=[AssetWatcher(name="kafka_watcher", trigger=trigger)]
+minio_events_asset = Asset(
+    name="minio_events_topic_asset", watchers=[AssetWatcher(name="minio_events_watcher", trigger=trigger)]
 )
 
 @dag(
     dag_id="load_to_snowflake",
-    schedule=[kafka_topic_asset],
+    schedule=[minio_events_asset],
     tags=["Loading", "Kafka", "MinIO", "Snowflake"]
 )
 def load_photos_to_snowflake_dag():
-        
+    
     @task
-    def load_to_snowflake_task(triggering_asset_events=None):
-        logger = setup_logger('load_to_snowflake_task', 'snowflake_load_dag.log', 'loading')
-        minio_filepath = extract_filepath_from_message(triggering_asset_events[kafka_topic_asset], logger)
+    def extract_filepath_from_message_task(triggering_asset_events=None):
+        logger = setup_logger('extract_filepath_from_message_task', 'snowflake_load_dag.log', 'loading')
+        minio_filepath = extract_filepath_from_message(triggering_asset_events[minio_events_asset], logger)
+        return minio_filepath
+
+    @task
+    def extract_json_as_jsonl_from_minio_task(minio_filepath):
+        logger = setup_logger('extract_json_as_jsonl_from_minio_task', 'snowflake_load_dag.log', 'loading')
         minio_client = get_minio_client()
-        photos_data_jsonl_path = extract_json_as_jsonl_from_minio(minio_client, minio_filepath, logger)        
+        photos_data_jsonl_path = extract_json_as_jsonl_from_minio(minio_client, minio_filepath, logger)
+        return photos_data_jsonl_path        
+
+    @task
+    def load_to_snowflake_task(tmp_jsonl_filepath):
+        logger = setup_logger('load_to_snowflake_task', 'snowflake_load_dag.log', 'loading')      
         snowflake_connection = get_snowflake_connection()
-        copy_file_to_snowflake(snowflake_connection, photos_data_jsonl_path, logger)
+        copy_file_to_snowflake(snowflake_connection, tmp_jsonl_filepath, logger)
+        return tmp_jsonl_filepath
+    
+    @task
+    def produce_load_complete_message_task(tmp_jsonl_filepath):
+        logger = setup_logger('produce_load_complete_message_task', 'snowflake_load_dag.log', 'loading')
+        event_message = generate_load_complete_message(tmp_jsonl_filepath, logger)
+        produce_kafka_message(LOAD_COMPLETE_TOPIC, event_message, logger)
 
-    load_to_snowflake_task()
 
+    minio_filepath = extract_filepath_from_message_task()
+    tmp_jsonl_filepath = extract_json_as_jsonl_from_minio_task(minio_filepath)
+    copied_tmp_jsonl_filepath = load_to_snowflake_task(tmp_jsonl_filepath)
+    produce_load_complete_message_task(copied_tmp_jsonl_filepath)
+    
 load_photos_to_snowflake_dag()

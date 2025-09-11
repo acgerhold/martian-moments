@@ -91,10 +91,10 @@ def test_upload_json_to_minio_new_bucket(mock_minio_client, sample_final_json, m
         assert isinstance(call_args[1]['data'], BytesIO)
         
         # Verify logging
-        mock_logger.info.assert_called_once()
-        log_msg = mock_logger.info.call_args[0][0]
-        assert "Uploading to MinIO" in log_msg
-        assert "Photos: 2" in log_msg
+        assert mock_logger.info.call_count == 2
+        log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
+        assert any("Attempting upload to MinIO" in msg for msg in log_calls)
+        assert any("Uploaded to MinIO" in msg and "Photos Count: 2" in msg for msg in log_calls)
 
 def test_upload_json_to_minio_existing_bucket(mock_minio_client, sample_final_json, mock_logger):
     """Test uploading JSON to MinIO when bucket already exists"""
@@ -129,8 +129,8 @@ def test_upload_json_to_minio_empty_photos(mock_minio_client, mock_logger):
         mock_minio_client.put_object.assert_called_once()
         
         # Verify logging shows 0 photos
-        log_msg = mock_logger.info.call_args[0][0]
-        assert "Photos: 0" in log_msg
+        log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
+        assert any("Photos Count: 0" in msg for msg in log_calls)
 
 # ====== EXTRACT_JSON_AS_JSONL_FROM_MINIO TESTS ======
 
@@ -159,10 +159,10 @@ def test_extract_json_as_jsonl_from_minio_success(mock_minio_client, sample_fina
         mock_remove.assert_called_once_with('/tmp/test_file.json')
         
         # Verify logging
-        assert mock_logger.info.call_count == 2
+        assert mock_logger.info.call_count == 3
         log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
+        assert any("Attempting extract from MinIO" in msg for msg in log_calls)
         assert any("Extracted from MinIO" in msg for msg in log_calls)
-        assert any("Stored file" in msg for msg in log_calls)
 
 def test_extract_json_as_jsonl_from_minio_filepath_parsing(mock_minio_client, mock_logger):
     """Test filepath parsing with different input formats"""

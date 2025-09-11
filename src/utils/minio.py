@@ -17,7 +17,7 @@ def get_minio_client():
     return minio_client
 
 def upload_json_to_minio(minio_client, final_json, logger):
-
+    logger.info(f"Attempting upload to MinIO - {final_json['filename']}")
     if not minio_client.bucket_exists(MINIO_BUCKET):
         minio_client.make_bucket(MINIO_BUCKET)
 
@@ -27,16 +27,17 @@ def upload_json_to_minio(minio_client, final_json, logger):
     data_bytes = json.dumps(final_json).encode("utf-8")
     data_stream = BytesIO(data_bytes)
 
-    logger.info(f"Uploading to MinIO - File: {filename}, Photos: {final_json['photo_count']}")
     minio_client.put_object(
         bucket_name=MINIO_BUCKET,
         object_name=minio_filepath,
         data=data_stream,
         length=len(data_bytes),
         content_type="application/json"
-    )    
+    )
+    logger.info(f"Uploaded to MinIO - File: {filename}, Photos Count: {final_json['photo_count']}")    
 
 def extract_json_as_jsonl_from_minio(minio_client, minio_filepath, logger):
+    logger.info(f"Attempting extract from MinIO - Path: {minio_filepath}")
     tmp_dir = tempfile.gettempdir()
     minio_filepath = minio_filepath.replace(f"{MINIO_BUCKET}/", "", 1)
     tmp_filepath = os.path.join(tmp_dir, os.path.basename(minio_filepath))
@@ -53,5 +54,5 @@ def extract_json_as_jsonl_from_minio(minio_client, minio_filepath, logger):
     
     os.remove(tmp_filepath)
     
-    logger.info(f"Stored file - Path: {jsonl_path}")
+    logger.info(f"Extracted from MinIO - Path: {jsonl_path}")
     return jsonl_path

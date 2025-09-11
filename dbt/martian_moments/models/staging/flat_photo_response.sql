@@ -1,6 +1,5 @@
 {{ config(
     materialized='view',
-    unique_keys='image_id',
     tags='flatten'
 ) }}
 

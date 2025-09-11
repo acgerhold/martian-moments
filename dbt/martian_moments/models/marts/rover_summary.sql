@@ -1,6 +1,7 @@
 {{ config(
     materialized='incremental',
-    unique_keys=['name', 'launch_date', 'landing_date'],
+    unique_key='name',
+    incremental_strategy='merge',
     cluster_by='name',
     tags='aggregate'
 ) }}

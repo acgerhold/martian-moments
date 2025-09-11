@@ -1,6 +1,5 @@
 {{ config(
     materialized='view',
-    unique_keys='rover_id',
     tags='normalize'
 ) }}
 
