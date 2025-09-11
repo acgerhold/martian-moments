@@ -17,13 +17,14 @@ def get_snowflake_connection():
 
     return snowflake_connection
 
-def copy_file_to_snowflake(snowflake_connection, jsonl_file_path, logger):
+def copy_file_to_snowflake(snowflake_connection, tmp_jsonl_filepath, logger):
+    logger.info(f"Attempting copy to Snowflake - File: {tmp_jsonl_filepath}")
     snowflake_cursor = snowflake_connection.cursor()
     snowflake_cursor.execute(f"USE SCHEMA {os.getenv('SNOWFLAKE_DATABASE')}.{os.getenv('SNOWFLAKE_SCHEMA_BRONZE')};")    
     snowflake_cursor.execute("REMOVE @%RAW_PHOTO_RESPONSE PATTERN='.*';")
     
     try:
-        snowflake_cursor.execute(f"PUT file://{jsonl_file_path} @%RAW_PHOTO_RESPONSE OVERWRITE = TRUE")        
+        snowflake_cursor.execute(f"PUT file://{tmp_jsonl_filepath} @%RAW_PHOTO_RESPONSE OVERWRITE = TRUE")        
         snowflake_cursor.execute("""
             COPY INTO RAW_PHOTO_RESPONSE
             FROM @%RAW_PHOTO_RESPONSE
@@ -33,8 +34,9 @@ def copy_file_to_snowflake(snowflake_connection, jsonl_file_path, logger):
         """)
         
     finally:
-        if os.path.exists(jsonl_file_path):
-            os.remove(jsonl_file_path)
+        logger.info(f"Copied to Snowflake - File: {tmp_jsonl_filepath}")    
+        if os.path.exists(tmp_jsonl_filepath):
+            os.remove(tmp_jsonl_filepath)
             
         snowflake_cursor.close()
         snowflake_connection.close() 
