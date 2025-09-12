@@ -14,6 +14,14 @@ sources:
             tests:
               - not_null
               - unique
+      - name: RAW_COORDINATE_RESPONSE
+        description: "Raw coordinate response data from NASA geoJSON"
+        columns: 
+          - name: coordinates
+            description: "Source JSON data"
+            tests:
+              - not_null
+              - unique
   - name: MARS_SILVER
     description: "Silver layer tables from Snowflake"
     database: MARS_DB
@@ -28,7 +36,7 @@ sources:
               - not_null
               - unique
       - name: FACT_PHOTOS
-        description: "Main fact table of images"
+        description: "Main fact view of images"
         columns:
           - name: image_id
             description: "A photo's unique ID"
@@ -48,6 +56,30 @@ sources:
         columns:
           - name: camera_id
             description: "A camera's unique ID"
+            tests:
+              - not_null
+              - unique
+      - name: FLAT_COORDINATE_RESPONSE
+        description: "Flattened 'coordinates' column from RAW_COORDINATE_RESPONSE"
+        columns:
+          - name: coordinates
+            description: "JSON array of all coordinates a rover traveled"
+            tests:
+              - not_null
+              - unique
+      - name: FACT_PATH
+        description: "Main fact view of rover pathing"
+        columns:
+          - name: sol
+            description: "The sol a rover traveled coordinates"
+            tests:
+              - not_null
+              - unique
+      - name: DIM_COORDINATE
+        description: "Coordinate dimensions"
+        columns:
+          - name: coordinate_id
+            description: "Composite key of a coordinate's sol & sequence number"
             tests:
               - not_null
               - unique
@@ -85,5 +117,34 @@ models:
               expression: "LIKE 'http%'"
       - name: camera_name
         description: "Camera name abbreviation"
+        tests:
+          - not_null
+  - name: flat_coordinate_response
+    description: "Flattened coordinate response data with parsed json"
+    columns:
+      - name: sol
+        description: "Sol a rover traveled a set of coordinates"
+        tests:
+          - not_null
+      - name: to_rmc
+        tests:
+          - not_null
+      - name: from_rmc
+        tests:
+          - not_null
+      - name: sclk_end
+        description: "Ending time for path (space clock)"
+        tests:
+          - not_null
+      - name: sclk_start
+        description: "Starting time for path (space clock)"
+        tests:
+          - not_null
+      - name: length
+        description: "Length of path traveled (meters)"
+        tests:
+          - not_null
+      - name: coordinates
+        description: "Array of coordinates a rover traveled on a sol"
         tests:
           - not_null

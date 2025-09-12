@@ -1,0 +1,16 @@
+{{ config(
+    materialized='view',
+    tags='flatten'
+) }}
+
+SELECT 
+    coordinate.value:geometry.coordinates::array as coordinates,
+    coordinate.value:properties.sol::int as sol,
+    coordinate.value:properties.fromRMC::string as from_rmc,
+    coordinate.value:properties.toRMC::string as to_rmc,
+    coordinate.value:properties.length::float as length,
+    coordinate.value:properties.SCLK_START::int as sclk_start,
+    coordinate.value:properties.SCLK_END::int as sclk_end  
+FROM 
+    {{ source('MARS_BRONZE', 'RAW_COORDINATE_RESPONSE') }},
+    LATERAL FLATTEN(input => parse_json(coordinates)) as coordinate
