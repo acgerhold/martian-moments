@@ -28,6 +28,28 @@ def sample_final_json():
         "ingestion_date": "2025-09-10T12:00:00"
     }
 
+@pytest.fixture
+def sample_coordinates_json():
+    return {
+        "filename": "mars_rover_coordinates_2025-09-13T15:30:00.json",
+        "coordinate_count": 2,
+        "coordinates": [
+            {
+                "type": "Feature",
+                "geometry": {"coordinates": [[77.314, 18.490, -2350.79]]},
+                "properties": {"sol": 52},
+                "rover_name": "Perseverance"
+            },
+            {
+                "type": "Feature", 
+                "geometry": {"coordinates": [[88.123, 19.456, -1234.56]]},
+                "properties": {"sol": 100},
+                "rover_name": "Curiosity"
+            }
+        ],
+        "ingestion_date": "2025-09-13T15:30:00"
+    }
+
 # ====== GET_MINIO_CLIENT TESTS ======
 
 @patch.dict(os.environ, {
@@ -74,8 +96,9 @@ def test_upload_json_to_minio_new_bucket(mock_minio_client, sample_final_json, m
     """Test uploading JSON to MinIO when bucket doesn't exist"""
     mock_minio_client.bucket_exists.return_value = False
     
-    with patch('src.utils.minio.MINIO_BUCKET', 'test-bucket'):
-        upload_json_to_minio(mock_minio_client, sample_final_json, mock_logger)
+    with patch('src.utils.minio.MINIO_BUCKET', 'test-bucket'), \
+         patch('src.utils.minio.get_minio_client', return_value=mock_minio_client):
+        upload_json_to_minio(sample_final_json, mock_logger)
         
         # Verify bucket creation
         mock_minio_client.bucket_exists.assert_called_once_with('test-bucket')
@@ -94,14 +117,15 @@ def test_upload_json_to_minio_new_bucket(mock_minio_client, sample_final_json, m
         assert mock_logger.info.call_count == 2
         log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
         assert any("Attempting upload to MinIO" in msg for msg in log_calls)
-        assert any("Uploaded to MinIO" in msg and "Photos Count: 2" in msg for msg in log_calls)
+        assert any("Uploaded to MinIO" in msg for msg in log_calls)
 
 def test_upload_json_to_minio_existing_bucket(mock_minio_client, sample_final_json, mock_logger):
     """Test uploading JSON to MinIO when bucket already exists"""
     mock_minio_client.bucket_exists.return_value = True
     
-    with patch('src.utils.minio.MINIO_BUCKET', 'existing-bucket'):
-        upload_json_to_minio(mock_minio_client, sample_final_json, mock_logger)
+    with patch('src.utils.minio.MINIO_BUCKET', 'existing-bucket'), \
+         patch('src.utils.minio.get_minio_client', return_value=mock_minio_client):
+        upload_json_to_minio(sample_final_json, mock_logger)
         
         # Verify bucket existence check but no creation
         mock_minio_client.bucket_exists.assert_called_once_with('existing-bucket')
@@ -109,6 +133,52 @@ def test_upload_json_to_minio_existing_bucket(mock_minio_client, sample_final_js
         
         # Verify file upload still happens
         mock_minio_client.put_object.assert_called_once()
+
+def test_upload_json_to_minio_coordinates(mock_minio_client, sample_coordinates_json, mock_logger):
+    """Test uploading coordinate JSON to MinIO with correct routing"""
+    mock_minio_client.bucket_exists.return_value = False
+    
+    with patch('src.utils.minio.MINIO_BUCKET', 'test-bucket'), \
+         patch('src.utils.minio.get_minio_client', return_value=mock_minio_client):
+        upload_json_to_minio(sample_coordinates_json, mock_logger)
+        
+        # Verify bucket creation
+        mock_minio_client.bucket_exists.assert_called_once_with('test-bucket')
+        mock_minio_client.make_bucket.assert_called_once_with('test-bucket')
+        
+        # Verify file upload with coordinates path
+        mock_minio_client.put_object.assert_called_once()
+        call_args = mock_minio_client.put_object.call_args
+        
+        assert call_args[1]['bucket_name'] == 'test-bucket'
+        assert call_args[1]['object_name'] == 'coordinates/mars_rover_coordinates_2025-09-13T15:30:00.json'
+        assert call_args[1]['content_type'] == 'application/json'
+        assert isinstance(call_args[1]['data'], BytesIO)
+        
+        # Verify logging
+        assert mock_logger.info.call_count == 2
+        log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
+        assert any("Attempting upload to MinIO" in msg for msg in log_calls)
+        assert any("Uploaded to MinIO" in msg for msg in log_calls)
+
+def test_upload_json_to_minio_unknown_filename(mock_minio_client, mock_logger):
+    """Test uploading JSON with unknown filename pattern"""
+    unknown_json = {
+        "filename": "unknown_file_type_2025-09-13T15:30:00.json",
+        "data": []
+    }
+    
+    mock_minio_client.bucket_exists.return_value = True
+    
+    with patch('src.utils.minio.MINIO_BUCKET', 'test-bucket'), \
+         patch('src.utils.minio.get_minio_client', return_value=mock_minio_client):
+        upload_json_to_minio(unknown_json, mock_logger)
+        
+        # Verify file upload with root path (no subdirectory)
+        mock_minio_client.put_object.assert_called_once()
+        call_args = mock_minio_client.put_object.call_args
+        
+        assert call_args[1]['object_name'] == 'unknown_file_type_2025-09-13T15:30:00.json'
 
 def test_upload_json_to_minio_empty_photos(mock_minio_client, mock_logger):
     """Test uploading JSON with no photos"""
@@ -123,14 +193,15 @@ def test_upload_json_to_minio_empty_photos(mock_minio_client, mock_logger):
     
     mock_minio_client.bucket_exists.return_value = True
     
-    with patch('src.utils.minio.MINIO_BUCKET', 'test-bucket'):
-        upload_json_to_minio(mock_minio_client, empty_json, mock_logger)
+    with patch('src.utils.minio.MINIO_BUCKET', 'test-bucket'), \
+         patch('src.utils.minio.get_minio_client', return_value=mock_minio_client):
+        upload_json_to_minio(empty_json, mock_logger)
         
         mock_minio_client.put_object.assert_called_once()
         
-        # Verify logging shows 0 photos
+        # Verify logging shows upload
         log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
-        assert any("Photos Count: 0" in msg for msg in log_calls)
+        assert any("Uploaded to MinIO" in msg for msg in log_calls)
 
 # ====== EXTRACT_JSON_AS_JSONL_FROM_MINIO TESTS ======
 
@@ -141,9 +212,10 @@ def test_extract_json_as_jsonl_from_minio_success(mock_minio_client, sample_fina
     with patch('tempfile.gettempdir', return_value='/tmp'), \
          patch('src.utils.minio.MINIO_BUCKET', 'test-bucket'), \
          patch('builtins.open', mock_open(read_data=json.dumps(sample_final_json))), \
-         patch('os.remove') as mock_remove:
+         patch('os.remove') as mock_remove, \
+         patch('src.utils.minio.get_minio_client', return_value=mock_minio_client):
         
-        result = extract_json_as_jsonl_from_minio(mock_minio_client, minio_filepath, mock_logger)
+        result = extract_json_as_jsonl_from_minio(minio_filepath, mock_logger)
         
         # Verify MinIO download
         mock_minio_client.fget_object.assert_called_once_with(
@@ -179,9 +251,10 @@ def test_extract_json_as_jsonl_from_minio_filepath_parsing(mock_minio_client, mo
         with patch('tempfile.gettempdir', return_value='/tmp'), \
              patch('src.utils.minio.MINIO_BUCKET', 'test-bucket'), \
              patch('builtins.open', mock_open(read_data='{"test": "data"}')), \
-             patch('os.remove'):
+             patch('os.remove'), \
+             patch('src.utils.minio.get_minio_client', return_value=mock_minio_client):
             
-            result = extract_json_as_jsonl_from_minio(mock_minio_client, input_path, mock_logger)
+            result = extract_json_as_jsonl_from_minio(input_path, mock_logger)
             
             # Verify correct MinIO path is used
             mock_minio_client.fget_object.assert_called_once()
@@ -212,8 +285,9 @@ def test_extract_json_as_jsonl_from_minio_file_operations(mock_minio_client, moc
             
             return mock_handle
         
-        with patch('builtins.open', side_effect=mock_open_func):
-            result = extract_json_as_jsonl_from_minio(mock_minio_client, minio_filepath, mock_logger)
+        with patch('builtins.open', side_effect=mock_open_func), \
+             patch('src.utils.minio.get_minio_client', return_value=mock_minio_client):
+            result = extract_json_as_jsonl_from_minio(minio_filepath, mock_logger)
             
             # Verify correct files were opened
             assert '/tmp/data.json' in mock_file_handles  # Read operation
@@ -245,9 +319,10 @@ def test_extract_json_as_jsonl_from_minio_complex_data(mock_minio_client, mock_l
     with patch('tempfile.gettempdir', return_value='/tmp'), \
          patch('src.utils.minio.MINIO_BUCKET', 'test-bucket'), \
          patch('builtins.open', mock_open(read_data=json.dumps(complex_data))), \
-         patch('os.remove'):
+         patch('os.remove'), \
+         patch('src.utils.minio.get_minio_client', return_value=mock_minio_client):
         
-        result = extract_json_as_jsonl_from_minio(mock_minio_client, minio_filepath, mock_logger)
+        result = extract_json_as_jsonl_from_minio(minio_filepath, mock_logger)
         
         assert result == '/tmp/complex.jsonl'
         mock_minio_client.fget_object.assert_called_once_with(
