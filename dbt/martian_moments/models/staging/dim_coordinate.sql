@@ -4,7 +4,7 @@
 ) }}
 
 SELECT
-    dro.rover_id + (sol * 10000) + coord.index AS coordinate_id,
+    (dro.rover_id * 1000000) + (sol * 100) + coord.index AS coordinate_id,
     dro.rover_id,
     coord.index AS waypoint_sequence,
     sol,

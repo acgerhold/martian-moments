@@ -4,6 +4,7 @@
 ) }}
 
 SELECT
+    (rover_id * 10000) + sol AS path_id,
     dro.rover_id,
     fcr.sol,
     fcr.from_rmc,

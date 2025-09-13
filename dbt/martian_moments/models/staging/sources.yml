@@ -62,16 +62,19 @@ sources:
       - name: FLAT_COORDINATE_RESPONSE
         description: "Flattened 'coordinates' column from RAW_COORDINATE_RESPONSE"
         columns:
-          - name: coordinates
-            description: "JSON array of all coordinates a rover traveled"
+          - name: rover_name
+            description: "Name of rover for coordinates traveled"
             tests:
               - not_null
-              - unique
+          - name: sol
+            description: "Sol number of coordinates traveled for a rover"
+            tests:
+              - not_null
       - name: FACT_PATH
         description: "Main fact view of rover pathing"
         columns:
-          - name: sol
-            description: "The sol a rover traveled coordinates"
+          - name: path_id
+            description: "Composite key of rover_id and sol"
             tests:
               - not_null
               - unique
@@ -79,7 +82,7 @@ sources:
         description: "Coordinate dimensions"
         columns:
           - name: coordinate_id
-            description: "Composite key of a coordinate's sol & sequence number"
+            description: "Composite key of a coordinate's rover, sol, & sequence number"
             tests:
               - not_null
               - unique
@@ -122,6 +125,10 @@ models:
   - name: flat_coordinate_response
     description: "Flattened coordinate response data with parsed json"
     columns:
+      - name: rover_name
+        description: "Name of rover that traveled set of coordinates"
+        tests:
+          - not_null
       - name: sol
         description: "Sol a rover traveled a set of coordinates"
         tests:
@@ -142,9 +149,5 @@ models:
           - not_null
       - name: length
         description: "Length of path traveled (meters)"
-        tests:
-          - not_null
-      - name: coordinates
-        description: "Array of coordinates a rover traveled on a sol"
         tests:
           - not_null

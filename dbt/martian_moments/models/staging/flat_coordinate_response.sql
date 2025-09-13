@@ -4,7 +4,7 @@
 ) }}
 
 SELECT 
-    coordinate.value:rover::string as rover_name,
+    coordinate.value:rover_name::string as rover_name,
     coordinate.value:geometry.coordinates::array as coordinates,
     coordinate.value:properties.sol::int as sol,
     coordinate.value:properties.fromRMC::string as from_rmc,
