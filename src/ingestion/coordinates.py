@@ -15,7 +15,12 @@ def extract_coordinates_from_nasa(rover: str, logger):
         coordinate_response = response.json()
 
         logger.info(f"Fetched {len(coordinate_response.get('features', []))} sol coordinate records for rover: {rover}")
-        return coordinate_response
+        enhanced_coordinate_response = {
+            "rover": rover,
+            "coordinate_response": coordinate_response
+        }
+
+        return enhanced_coordinate_response
     except Exception as e:
         logger.error(f"Error processing coordinate request for rover: {rover}")
         return {"features": []}
@@ -25,8 +30,13 @@ def create_final_coordinates_json(all_rover_coordinate_results, logger):
     all_rover_coordinate_results = list(all_rover_coordinate_results)
     all_coordinates = []
     for result in all_rover_coordinate_results:
-        coordinates = result.get('features', [])
+        rover = result.get('rover')
+        coordinate_response = result.get('coordinate_response', {})
+        coordinates = coordinate_response.get('features', [])
+        
         if coordinates:
+            for coord in coordinates:
+                coord['rover_name'] = rover
             all_coordinates.extend(coordinates)
 
     coordinate_count = len(all_coordinates)
