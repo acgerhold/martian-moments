@@ -1,0 +1,153 @@
+version: 2
+
+sources:
+  - name: MARS_BRONZE
+    description: "Bronze layer tables from Snowflake"
+    database: MARS_DB
+    schema: MARS_BRONZE
+    tables:
+      - name: RAW_PHOTO_RESPONSE
+        description: "Raw photo response data from NASA API"
+        columns:
+          - name: photos
+            description: "Source JSON data"
+            tests:
+              - not_null
+              - unique
+      - name: RAW_COORDINATE_RESPONSE
+        description: "Raw coordinate response data from NASA geoJSON"
+        columns: 
+          - name: coordinates
+            description: "Source JSON data"
+            tests:
+              - not_null
+              - unique
+  - name: MARS_SILVER
+    description: "Silver layer tables from Snowflake"
+    database: MARS_DB
+    schema: MARS_SILVER
+    tables:
+      - name: FLAT_PHOTO_RESPONSE
+        description: "Flattened 'photos' column from RAW_PHOTO_RESPONSE"
+        columns:
+          - name: image_id
+            description: "A photo's unique ID"
+            tests:
+              - not_null
+              - unique
+      - name: FACT_PHOTOS
+        description: "Main fact view of images"
+        columns:
+          - name: image_id
+            description: "A photo's unique ID"
+            tests:
+              - not_null
+              - unique
+      - name: DIM_ROVERS
+        description: "Rover dimensions"
+        columns:
+          - name: rover_id
+            description: "A rovers's unique ID"
+            tests:
+              - not_null
+              - unique
+      - name: DIM_CAMERAS
+        description: "Camera dimensions"
+        columns:
+          - name: camera_id
+            description: "A camera's unique ID"
+            tests:
+              - not_null
+              - unique
+      - name: FLAT_COORDINATE_RESPONSE
+        description: "Flattened 'coordinates' column from RAW_COORDINATE_RESPONSE"
+        columns:
+          - name: rover_name
+            description: "Name of rover for coordinates traveled"
+            tests:
+              - not_null
+          - name: sol
+            description: "Sol number of coordinates traveled for a rover"
+            tests:
+              - not_null
+      - name: FACT_PATH
+        description: "Main fact view of rover pathing"
+        columns:
+          - name: path_id
+            description: "Composite key of rover_id and sol"
+            tests:
+              - not_null
+              - unique
+      - name: DIM_COORDINATE
+        description: "Coordinate dimensions"
+        columns:
+          - name: coordinate_id
+            description: "Composite key of a coordinate's rover, sol, & sequence number"
+            tests:
+              - not_null
+              - unique
+
+models:
+  - name: flat_photo_response
+    description: "Flattened photo response data with parsed JSON"
+    columns:
+      - name: image_id
+        description: "Unique identifier for each photo"
+        tests:
+          - not_null
+          - unique
+      - name: rover_name
+        description: "Name of the Mars rover"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Perseverance', 'Curiosity', 'Opportunity', 'Spirit', 'Sojourner']
+      - name: sol
+        description: "Sol (Mars day) when photo was taken"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: earth_date
+        description: "Earth date when photo was taken"
+        tests:
+          - not_null
+      - name: img_src
+        description: "URL to the image"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "LIKE 'http%'"
+      - name: camera_name
+        description: "Camera name abbreviation"
+        tests:
+          - not_null
+  - name: flat_coordinate_response
+    description: "Flattened coordinate response data with parsed json"
+    columns:
+      - name: rover_name
+        description: "Name of rover that traveled set of coordinates"
+        tests:
+          - not_null
+      - name: sol
+        description: "Sol a rover traveled a set of coordinates"
+        tests:
+          - not_null
+      - name: to_rmc
+        tests:
+          - not_null
+      - name: from_rmc
+        tests:
+          - not_null
+      - name: sclk_end
+        description: "Ending time for path (space clock)"
+        tests:
+          - not_null
+      - name: sclk_start
+        description: "Starting time for path (space clock)"
+        tests:
+          - not_null
+      - name: length
+        description: "Length of path traveled (meters)"
+        tests:
+          - not_null

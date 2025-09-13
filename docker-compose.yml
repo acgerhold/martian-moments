@@ -3,17 +3,35 @@ version: '3.8'
 x-airflow-common:
   &airflow-common
   build: . 
+  env_file:
+    - .env
   environment:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
     AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
-    AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
-    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY}
+    AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: "admin:admin"
+    AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USE_BUILTIN_PASSWORD: 'true'
+    AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL: 300
+    AIRFLOW__CORE__PARALLELISM: 32
+    AIRFLOW__CORE__DAG_CONCURRENCY: 16
+    AIRFLOW__CORE__MAX_ACTIVE_RUNS_PER_DAG: 16
+    AIRFLOW__WEBSERVER__BASE_URL: http://airflow-webserver:8080
+    AIRFLOW__SDK__API_BASE_URL: http://airflow-webserver:8080/api/v2
+    AIRFLOW__API__BASE_URL: http://airflow-webserver:8080
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-webserver:8080/execution/
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY}
+    AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW__API_AUTH__JWT_SECRET}
+    PYTHONPATH: /opt/airflow:/opt/airflow/dags:/opt/airflow/src
   volumes:
     - ./dags:/opt/airflow/dags
     - ./logs:/opt/airflow/logs
+    - ./plugins:/opt/airflow/plugins
+    - ./src:/opt/airflow/src
+    - ./dbt:/opt/airflow/dbt
+  user: "${AIRFLOW_UID:-50000}:0"
   depends_on: &airflow-common-depends-on
     postgres:
       condition: service_healthy
@@ -23,72 +41,6 @@ x-airflow-common:
       condition: service_healthy
 
 services:
-  kafka:
-    image: confluentinc/cp-kafka:latest
-    container_name: kafka_mars
-    user: "0:0"  # Run as root to avoid permission issues
-    ports:
-      - "9092:9092"
-      - "19092:19092"
-    environment:
-      # KRaft mode configuration (no Zookeeper needed)
-      KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_NODE_ID: 1
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      # Listener configuration
-      KAFKA_LISTENERS: PLAINTEXT://kafka:9092,CONTROLLER://kafka:29093,EXTERNAL://kafka:19092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:19092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      # Topic and replication settings
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
-      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
-      KAFKA_NUM_PARTITIONS: 3
-      # Cluster and log settings - use /var/lib/kafka instead of /tmp
-      KAFKA_LOG_DIRS: /var/lib/kafka/data
-      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
-    volumes:
-      - kafka_data:/var/lib/kafka/data
-    command: >
-      sh -c "
-      mkdir -p /var/lib/kafka/data &&
-      kafka-storage format -t $${CLUSTER_ID} -c /etc/kafka/server.properties --ignore-formatted || true &&
-      /etc/confluent/docker/run
-      "
-    healthcheck:
-      test: ["CMD", "kafka-topics", "--bootstrap-server", "kafka:9092", "--list"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 45s
-    restart: always
-
-  minio:
-    image: minio/minio:latest
-    container_name: minio_mars
-    environment:
-      - MINIO_ROOT_USER=admin
-      - MINIO_ROOT_PASSWORD=password
-      - MINIO_DOMAIN=storage
-      - MINIO_REGION_NAME=us-east-1
-      - MINIO_REGION=us-east-1
-      # Enable MinIO event notifications (for Kafka integration)
-      - MINIO_NOTIFY_KAFKA_ENABLE=on
-      - MINIO_NOTIFY_KAFKA_BROKERS=kafka:9092
-    ports:
-      - "9001:9001"
-      - "9000:9000"
-    command: ["server", "/data", "--console-address", ":9001"]
-    volumes:
-      - minio_data:/data
-    depends_on:
-      kafka:
-        condition: service_healthy
-    restart: always
 
   postgres:
     image: postgres:13
@@ -119,6 +71,126 @@ services:
       start_period: 30s
     restart: always
 
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka_mars
+    user: "0:0"
+    ports:
+      - "9092:9092"
+      - "19092:19092"
+    environment:
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_NODE_ID: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENERS: PLAINTEXT://kafka:9092,CONTROLLER://kafka:29093,EXTERNAL://kafka:19092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://kafka:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    command: >
+      sh -c "
+      mkdir -p /var/lib/kafka/data &&
+      kafka-storage format -t $${CLUSTER_ID} -c /etc/kafka/server.properties --ignore-formatted || true &&
+      /etc/confluent/docker/run
+      "
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "kafka:9092", "--list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
+    restart: always
+
+  airflow-init:
+    <<: *airflow-common
+    container_name: airflow_init_mars
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        mkdir -p /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins
+        chown -R "${AIRFLOW_UID:-50000}:0" /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins
+        /entrypoint airflow db migrate
+        echo "Database initialized"
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_MIGRATE: 'true'
+    user: "0:0"
+    depends_on:
+      <<: *airflow-common-depends-on
+
+  kafka-init:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka_init_mars
+    command: >
+      sh -c "
+      echo 'Creating Kafka topics...' &&
+      kafka-topics --create --bootstrap-server kafka:9092 --replication-factor 1 --partitions 3 --topic minio-events --if-not-exists &&
+      kafka-topics --create --bootstrap-server kafka:9092 --replication-factor 1 --partitions 3 --topic snowflake-load-complete --if-not-exists &&
+      echo 'Topics created successfully!'
+      "
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: "no"
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio_mars
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+      - MINIO_DOMAIN=storage
+      - MINIO_REGION_NAME=${MINIO_REGION_NAME}
+      - MINIO_REGION=${MINIO_REGION_NAME}
+      - MINIO_NOTIFY_KAFKA_ENABLE_FILE_EVENTS=on
+      - MINIO_NOTIFY_KAFKA_BROKERS_FILE_EVENTS=kafka:9092
+      - MINIO_NOTIFY_KAFKA_TOPIC_FILE_EVENTS=minio-events
+      - MINIO_NOTIFY_KAFKA_CLIENT_ID_FILE_EVENTS=minio-events
+    ports:
+      - "9001:9001"
+      - "9000:9000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    command: ["server", "/data", "--console-address", ":9001"]
+    volumes:
+      - minio_data:/data
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-init: 
+        condition: service_completed_successfully
+    restart: always
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: minio_init_mars
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "
+      echo 'Setting up MinIO bucket and events...' &&
+      mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} &&
+      mc mb --ignore-existing myminio/mars &&
+      mc event add myminio/mars arn:minio:sqs:us-east-1:FILE_EVENTS:kafka --event put &&
+      echo 'MinIO setup complete!'
+      "
+    restart: "no"
+
   airflow-webserver:
     <<: *airflow-common
     container_name: airflow_webserver_mars
@@ -147,7 +219,16 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
-  # Add triggerer service for asset watchers
+  airflow-dag-processor:
+    <<: *airflow-common
+    container_name: airflow_dag_processor_mars
+    command: dag-processor
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
   airflow-triggerer:
     <<: *airflow-common
     container_name: airflow_triggerer_mars
@@ -168,26 +249,6 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
-  airflow-init:
-    <<: *airflow-common
-    container_name: airflow_init_mars
-    entrypoint: /bin/bash
-    command:
-      - -c
-      - |
-        mkdir -p /opt/airflow/logs /opt/airflow/dags
-        /entrypoint airflow db migrate
-        echo "Database initialized successfully"
-    environment:
-      <<: *airflow-common-env
-      _AIRFLOW_DB_MIGRATE: 'true'
-      # Configure Simple Auth Manager with static password
-      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: "admin:admin"
-      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USE_BUILTIN_PASSWORD: 'false'
-    user: "0:0"
-    depends_on:
-      <<: *airflow-common-depends-on
-
   flower:
     <<: *airflow-common
     container_name: airflow_flower_mars
@@ -200,7 +261,22 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
+  metabase:
+    image: metabase/metabase:latest
+    container_name: metabase_mars
+    ports:
+      - "3000:3000"
+    environment:
+      MB_DB_FILE: /metabase-data/metabase.db
+    volumes:
+      - metabase-data:/metabase-data
+    depends_on:
+      minio: 
+        condition: service_healthy
+    restart: always
+
 volumes:
   minio_data:
   postgres-db-volume:
   kafka_data:
+  metabase-data:

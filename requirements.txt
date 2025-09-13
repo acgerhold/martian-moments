@@ -1,2 +1,14 @@
 apache-airflow-providers-apache-kafka>=1.9.0
 apache-airflow-providers-common-messaging>=1.0.3
+kafka-python>=2.0.2
+pytest-mock>=3.10.0
+pytest-cov>=4.0.0
+requests-mock>=1.10.0
+snowflake-connector-python[pandas]
+snowflake-sqlalchemy
+dbt-core
+dbt-snowflake
+pytest
+minio
+requests
+python-dotenv

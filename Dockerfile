@@ -6,8 +6,12 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p /opt/airflow/logs /opt/airflow/dags
+RUN mkdir -p /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins \
+    && chown -R airflow:root /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins \
+    && chmod -R 775 /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins
 
 USER airflow
 COPY requirements.txt /requirements.txt
 RUN pip install --no-cache-dir -r /requirements.txt
+
+WORKDIR /opt/airflow

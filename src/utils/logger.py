@@ -2,16 +2,18 @@ import os
 import logging
 from datetime import datetime
 
-def setup_logger_advanced(name: str, 
-                         log_file: str = "pipeline.log", 
-                         category_dir: str = None,
-                         use_date_subdirectory: bool = True,
-                         date_format: str = '%Y-%m-%d'):
+def setup_logger(
+    name: str, 
+    log_file: str = "pipeline.log", 
+    category_dir: str = None,
+    use_date_subdirectory: bool = True,
+    date_format: str = '%Y-%m-%d'
+):
     """
     Logger setup with explicit category directories.
     
     Args:
-        name: Logger name
+        name: Logger name 
         log_file: Log filename (just the filename, not full path)
         category_dir: Category directory (e.g., 'data_processing', 'api', 'ml')
         use_date_subdirectory: If True, adds date subdirectory

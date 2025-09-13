@@ -1,0 +1,24 @@
+name: 'martian_moments'
+version: '1.0.0'
+
+profile: 'martian_moments'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  martian_moments:
+    marts:
+      +schema: GOLD
+      +materialized: incremental
+    staging:
+      +schema: SILVER
+      +materialized: view

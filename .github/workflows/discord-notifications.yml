@@ -1,0 +1,20 @@
+name: Discord Notifications
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Martian Moments Update
+        uses: discord-actions/message@v2
+        with:
+          webhookUrl: ${{ secrets.DISCORD_WEBHOOK }}
+          message: |
+            🚀 **Martian Moments Update**
+            
+            **${{ steps.pr.outputs.pr_title || github.event.head_commit.message }}**                        
+            🔗 **[View Changes](${{ github.event.head_commit.url }})**
