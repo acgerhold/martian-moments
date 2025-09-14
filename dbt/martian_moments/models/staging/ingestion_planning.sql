@@ -1,6 +1,6 @@
 {{ config(
     materialized='view',
-    tags='scheduling'
+    tags='schedule'
 ) }}
 
 WITH rover_gaps AS (

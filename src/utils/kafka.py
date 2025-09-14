@@ -27,7 +27,7 @@ def extract_filepath_from_message(events, logger):
         
         logger.info(f"Filepath extracted - Path: {minio_filepath}")
         return minio_filepath
-    
+            
 def produce_kafka_message(topic, message_data, logger):
     logger.info(f"Attempting to produce event - Topic: {topic}")
     producer = KafkaProducer(

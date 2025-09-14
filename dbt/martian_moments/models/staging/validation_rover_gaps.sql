@@ -1,6 +1,6 @@
 {{ config(
     materialized='view',
-    tags='validation'
+    tags='validate'
 ) }}
 
 -- Identifies gaps between actual rover data and manifest data

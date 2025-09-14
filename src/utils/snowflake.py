@@ -54,4 +54,20 @@ def copy_file_to_snowflake(tmp_jsonl_filepath, logger):
             os.remove(tmp_jsonl_filepath)
             
         snowflake_cursor.close()
-        snowflake_connection.close() 
+        snowflake_connection.close()
+
+def fetch_results_from_silver_schema(table_name, logger):
+    logger.info(f"Attempting to fetch results - Table: {table_name}")
+    snowflake_connection = get_snowflake_connection()
+    snowflake_cursor = snowflake_connection.cursor()
+
+    try:
+        snowflake_cursor.execute(f"USE SCHEMA {os.getenv('SNOWFLAKE_DATABASE')}.{os.getenv('SNOWFLAKE_SCHEMA_SILVER')};")
+        table_results = snowflake_cursor.execute(f"SELECT * FROM {table_name}").fetchall()
+
+    finally:
+        snowflake_cursor.close()
+        snowflake_connection.close()
+
+    logger.info(f"Fetched results successfully - Table: {table_name}")
+    return table_results

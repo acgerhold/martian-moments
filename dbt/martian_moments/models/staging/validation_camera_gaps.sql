@@ -1,6 +1,6 @@
 {{ config(
     materialized='view',
-    tags='validation'
+    tags='validate'
 ) }}
 
 -- Validates camera summary data against manifest sol-level data

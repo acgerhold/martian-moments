@@ -15,7 +15,7 @@ PERSEVERANCE_TRAVERSAL_URL = "https://mars.nasa.gov/mmgis-maps/M20/Layers/json/M
 
 MINIO_BUCKET = os.getenv('MINIO_BUCKET')
 
-SOL_BATCH = list(range(500, 505))
+SOL_BATCH = list(range(555, 575))
 
 MINIO_EVENTS_TOPIC = "minio-events"
 
@@ -27,3 +27,6 @@ LOAD_COMPLETE_TOPIC = "snowflake-load-complete"
 
 DBT_PROJECT_DIR = "/opt/airflow/dbt/martian_moments"
 GOLD_TAG = "aggregate"
+INGESTION_PLANNING_VIEW = "INGESTION_PLANNING"
+
+INGESTION_SCHEDULING_TOPIC = "ingestion-scheduling"

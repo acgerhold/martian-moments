@@ -12,3 +12,4 @@ pytest
 minio
 requests
 python-dotenv
+pandas
