@@ -1,5 +1,5 @@
 from airflow.sdk import dag, task
-from datetime import datetime, timezone
+from datetime import datetime
 import sys
 
 sys.path.append('/opt/airflow')

@@ -1,6 +1,5 @@
 from airflow.providers.common.messaging.triggers.msg_queue import MessageQueueTrigger
 from airflow.sdk import dag, task, Asset, AssetWatcher
-from datetime import datetime
 import sys
 
 sys.path.append('/opt/airflow')

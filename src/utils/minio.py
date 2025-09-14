@@ -28,6 +28,8 @@ def upload_json_to_minio(final_json, logger):
             minio_filepath = f"photos/{filename}"
         case name if name.startswith("mars_rover_coordinates"):
             minio_filepath = f"coordinates/{filename}"
+        case name if name.startswith("mars_rover_manifests"):
+            minio_filepath = f"manifests/{filename}"
         case _:
             minio_filepath = f"{filename}"
 

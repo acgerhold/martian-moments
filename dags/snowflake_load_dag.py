@@ -3,9 +3,9 @@ from airflow.sdk import dag, task, Asset, AssetWatcher
 import sys 
 
 sys.path.append('/opt/airflow')
-from src.utils.minio import get_minio_client, extract_json_as_jsonl_from_minio
+from src.utils.minio import extract_json_as_jsonl_from_minio
 from src.utils.kafka import parse_message, extract_filepath_from_message, produce_kafka_message, generate_load_complete_message
-from src.utils.snowflake import get_snowflake_connection, copy_file_to_snowflake
+from src.utils.snowflake import copy_file_to_snowflake
 from src.utils.logger import setup_logger
 from src.config import MINIO_EVENTS_TOPIC, LOAD_COMPLETE_TOPIC
 

@@ -9,6 +9,7 @@
 SELECT 
     dr.rover_name AS name,
     fp.sol AS sol,
+    fp.earth_date AS earth_date,
     LISTAGG(DISTINCT dc.camera_name, ', ') AS camera_names,
     COUNT(DISTINCT dc.camera_name, ', ') AS cameras_used,
     COUNT(fp.image_id) AS total_photos
@@ -22,4 +23,5 @@ JOIN
         ON fp.camera_id = dc.camera_id
 GROUP BY
     dr.rover_name,
-    fp.sol
+    fp.sol,
+    fp.earth_date

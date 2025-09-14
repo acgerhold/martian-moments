@@ -2,7 +2,7 @@ import os
 import snowflake.connector
 from dotenv import load_dotenv
 
-from src.config import PHOTOS_TABLE_NAME, COORDINATES_TABLE_NAME
+from src.config import PHOTOS_TABLE_NAME, COORDINATES_TABLE_NAME, MANIFESTS_TABLE_NAME
 
 load_dotenv()
 
@@ -31,6 +31,8 @@ def copy_file_to_snowflake(tmp_jsonl_filepath, logger):
             table_name = PHOTOS_TABLE_NAME
         case name if name.startswith("mars_rover_coordinates"):
             table_name = COORDINATES_TABLE_NAME
+        case name if name.startswith("mars_rover_manifests"):
+            table_name = MANIFESTS_TABLE_NAME
         case _:
             table_name = "UNKNOWN"
 
