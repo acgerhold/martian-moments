@@ -4,7 +4,8 @@
 ) }}
 
 SELECT
-    (dro.rover_id * 1000000) + (sol * 100) + coord.index AS coordinate_id,
+    (rover_id * 1000000000) + (sol * 1000) + 
+        ROW_NUMBER() OVER (PARTITION BY rover_id, sol ORDER BY coord.index) AS coordinate_id,
     dro.rover_id,
     coord.index AS waypoint_sequence,
     sol,
