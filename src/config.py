@@ -15,8 +15,6 @@ PERSEVERANCE_TRAVERSAL_URL = "https://mars.nasa.gov/mmgis-maps/M20/Layers/json/M
 
 MINIO_BUCKET = os.getenv('MINIO_BUCKET')
 
-SOL_BATCH = list(range(750, 800))
-
 MINIO_EVENTS_TOPIC = "minio-events"
 
 PHOTOS_TABLE_NAME = "RAW_PHOTO_RESPONSE"

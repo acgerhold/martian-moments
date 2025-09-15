@@ -11,8 +11,8 @@ from src.config import MINIO_EVENTS_TOPIC, LOAD_COMPLETE_TOPIC
 
 def apply_function(*args, **kwargs):
     logger = setup_logger('apply_function_task', 'snowflake_load_dag.log', 'loading')
-    filepath = parse_message(args, logger)
-    return filepath
+    file_events_msg = parse_message(args, logger)
+    return file_events_msg
 
 trigger = MessageQueueTrigger(
     queue=f"kafka://kafka:9092/{MINIO_EVENTS_TOPIC}",
