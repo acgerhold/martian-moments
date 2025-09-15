@@ -1,8 +1,7 @@
 import pandas as pd
 
-def generate_ingestion_batches_from_table_results(table_results, logger):
+def generate_ingestion_batches_from_table_results(table_results_dataframe, logger):
     logger.info("Extracting ingestion schedule from table results")
-    table_results_dataframe = pd.DataFrame(table_results)
 
     batches = []
     for _, row in table_results_dataframe.iterrows():
@@ -10,9 +9,11 @@ def generate_ingestion_batches_from_table_results(table_results, logger):
             batch = {
                 "rover_name": row['ROVER_NAME'],
                 "sol_start": row['START_SOL'],
-                "sol_end": row['SOL_END']
+                "sol_end": row['END_SOL']
             }
             batches.append(batch)
 
     logger.info("Successfully generated batches for ingestion run")
     return batches
+
+

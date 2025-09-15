@@ -102,8 +102,22 @@ sources:
             tests:
               - not_null
               - unique
-      - name: VALIDATE_PHOTOS
-        description: "Table generated from FLAT_MANIFEST_RESPONSE to validate against photo tables"
+      - name: VALIDATION_CAMERA_GAPS
+        description: "View showing difference between manifest data and photos data for individual sol records"
+        columns:
+        - name: rover_name
+          description: "Name of rover"
+          tests:
+            - not_null
+      - name: VALIDATION_ROVER_GAPS
+        description: "View showing difference between manifest data and photos data for total sol records"
+        columns:
+        - name: rover_name
+          description: "Name of rover"
+          tests:
+            - not_null
+      - name: INGESTION_PLANNING
+        description: "View showing a summary of validation camera/rover gaps and a schedule for next ingestion batch."
         columns:
         - name: rover_name
           description: "Name of rover"

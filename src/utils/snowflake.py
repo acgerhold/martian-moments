@@ -1,5 +1,6 @@
 import os
 import snowflake.connector
+import pandas as pd
 from dotenv import load_dotenv
 
 from src.config import PHOTOS_TABLE_NAME, COORDINATES_TABLE_NAME, MANIFESTS_TABLE_NAME
@@ -64,10 +65,12 @@ def fetch_results_from_silver_schema(table_name, logger):
     try:
         snowflake_cursor.execute(f"USE SCHEMA {os.getenv('SNOWFLAKE_DATABASE')}.{os.getenv('SNOWFLAKE_SCHEMA_SILVER')};")
         table_results = snowflake_cursor.execute(f"SELECT * FROM {table_name}").fetchall()
+        columns = [desc[0] for desc in snowflake_cursor.description]
+        table_results_dataframe = pd.DataFrame(table_results, columns=columns)
 
     finally:
         snowflake_cursor.close()
         snowflake_connection.close()
 
     logger.info(f"Fetched results successfully - Table: {table_name}")
-    return table_results
+    return table_results_dataframe

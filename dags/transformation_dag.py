@@ -34,8 +34,8 @@ def run_dbt_models_dag():
     @task
     def run_dbt_transformations_task():
         logger = setup_logger('run_dbt_transformations_task', 'transformation_dag.log', 'transformation')
-        run_dbt_models_by_tag(GOLD_TAG, logger)
-        return "Gold Models Updated"
+        dbt_result = run_dbt_models_by_tag(GOLD_TAG, logger)
+        return dbt_result
 
     @task
     def fetch_ingestion_planning_results_task():
@@ -54,9 +54,11 @@ def run_dbt_models_dag():
         logger = setup_logger('produce_ingestion_schedule_task', 'transformation_dag.log', 'transformation')
         produce_kafka_message(INGESTION_SCHEDULING_TOPIC, batches, logger)
 
-    run_dbt_transformations_task()
+    dbt_result = run_dbt_transformations_task()
     table_results = fetch_ingestion_planning_results_task()
     batches = generate_ingestion_batches_task(table_results)
     produce_ingestion_schedule_message_task(batches)
+    
+    dbt_result >> table_results
 
 dag = run_dbt_models_dag()

@@ -25,7 +25,7 @@ SELECT
     fpr.camera_full_name
 FROM 
     {{ source('MARS_SILVER', 'FLAT_PHOTO_RESPONSE') }} fpr
-JOIN 
+INNER JOIN 
     {{ source('MARS_SILVER', 'FACT_PATH') }} fpa 
         ON fpr.rover_id = fpa.rover_id 
         AND fpr.sol = fpa.sol
