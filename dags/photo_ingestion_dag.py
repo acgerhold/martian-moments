@@ -4,7 +4,7 @@ import sys
 
 sys.path.append('/opt/airflow')
 from src.ingestion.photos import extract_photos_from_nasa, create_final_photos_json, generate_tasks_for_photos_batch
-from src.config import SOL_BATCH, INGESTION_SCHEDULING_TOPIC
+from src.config import INGESTION_SCHEDULING_TOPIC
 from src.utils.minio import upload_json_to_minio
 from src.utils.logger import setup_logger
 from src.utils.kafka import parse_message, extract_ingestion_schedule_from_message
