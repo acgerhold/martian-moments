@@ -137,7 +137,7 @@ def test_extract_filepath_from_message_success(mock_logger):
     """Test successful filepath extraction"""
     test_filepath = "photos/mars_rover_photos_batch_sol_150.json"
     events = [
-        MagicMock(extra={'payload': {'filepath': test_filepath}})
+        MagicMock(extra={'payload': {'data': test_filepath}})
     ]
     
     result = extract_filepath_from_message(events, mock_logger)
@@ -223,8 +223,8 @@ def test_extract_filepath_from_message_multiple_events(mock_logger):
     second_filepath = "photos/second_batch.json"
     
     events = [
-        MagicMock(extra={'payload': {'filepath': first_filepath}}),
-        MagicMock(extra={'payload': {'filepath': second_filepath}})
+        MagicMock(extra={'payload': {'data': first_filepath}}),
+        MagicMock(extra={'payload': {'data': second_filepath}})
     ]
     
     result = extract_filepath_from_message(events, mock_logger)
@@ -255,7 +255,7 @@ def test_extract_filepath_from_message_complex_payload(mock_logger):
     events = [
         MagicMock(extra={
             'payload': {
-                'filepath': test_filepath,
+                'data': test_filepath,
                 'bucket': 'mars-photos',
                 'event_type': 's3:ObjectCreated:Put',
                 'timestamp': '2025-09-10T12:00:00Z',
