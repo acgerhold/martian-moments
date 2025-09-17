@@ -19,7 +19,7 @@ def parse_message(args, logger):
 def extract_filepath_from_message(events, logger):
     logger.info(f"Attempting to extract data from message - {events}")
     for event in events:
-        filepath = event.extra.get('payload', {}).get('filepath')
+        filepath = event.extra.get('payload', {}).get('data')
 
         if not filepath:
             logger.info("No data to process")
