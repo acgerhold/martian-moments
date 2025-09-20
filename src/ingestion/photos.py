@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from src.config import NASA_KEY, PHOTOS_BASE_URL
     
 def extract_photos_from_nasa(rover: str, sol: int, logger):
-    logger.info(f"Processing photos request for rover: {rover} on sol: {sol}")
+    logger.info(f"Processing Photos Request - Rover: {rover}, Sol: {sol}")
     photos_request = (
         f"{PHOTOS_BASE_URL}{rover}/photos"
         f"?sol={sol}&api_key={NASA_KEY}"
@@ -14,14 +14,14 @@ def extract_photos_from_nasa(rover: str, sol: int, logger):
         response.raise_for_status()
         photos_response = response.json()
 
-        logger.info(f"Fetched {len(photos_response.get('photos', []))} photos for {rover} on sol {sol}")
+        logger.info(f"Successful Photos Request - Rover: {rover}, Sol: {sol}, Photo Count: {len(photos_response.get('photos', []))}")
         return photos_response
     except Exception as e:
-        logger.error(f"Error processing photos request for rover: {rover} on sol: {sol}: {e}")
+        logger.error(f"Unsuccessful Photos Request -  Rover: {rover}, Sol: {sol}, Error: {e}")
         return {"photos": []}
     
 def create_final_photos_json(all_rover_photo_results, sol_range, logger):
-        logger.info("Creating photos final .json")
+        logger.info("Creating Photos Batch File")
         all_rover_photo_results = list(all_rover_photo_results)
         sol_start = min(sol_range)
         sol_end = max(sol_range)
@@ -44,11 +44,11 @@ def create_final_photos_json(all_rover_photo_results, sol_range, logger):
             "ingestion_date": ingestion_timestamp
         }
 
-        logger.info(f"Created file - Name: {filename}, Date: {ingestion_timestamp}, Photo Count: {photo_count}")
+        logger.info(f"Created Photos Batch - File: {filename}, Photo Count: {photo_count}")
         return final_photos_json
 
 def generate_tasks_for_photos_batch(ingestion_schedule, logger):
-    logger.info("Generating tasks for photos DAG run")
+    logger.info("Generating Tasks for Photos DAG")
     tasks = []
     sol_start = 0
     sol_end = 0
@@ -67,5 +67,5 @@ def generate_tasks_for_photos_batch(ingestion_schedule, logger):
 
     sol_range = list(range(sol_start, sol_end))
 
-    logger.info(f"{len(tasks)} tasks scheduled for this DAG run")
+    logger.info(f"{len(tasks)} Tasks Generated")
     return {"tasks": tasks, "sol_range": sol_range}

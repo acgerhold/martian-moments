@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from src.config import PERSEVERANCE_TRAVERSAL_URL
 
 def extract_coordinates_from_nasa(rover: str, logger):
-    logger.info(f"Processing coordinates request for rover: {rover}")
+    logger.info(f"Processing Coordinates Request - Rover: {rover}")
     match rover:
         case "Perseverance":
             coordinate_request = PERSEVERANCE_TRAVERSAL_URL
@@ -14,19 +14,19 @@ def extract_coordinates_from_nasa(rover: str, logger):
         response.raise_for_status()
         coordinate_response = response.json()
 
-        logger.info(f"Fetched {len(coordinate_response.get('features', []))} sol coordinate records for rover: {rover}")
         enhanced_coordinate_response = {
             "rover": rover,
             "coordinate_response": coordinate_response
         }
 
+        logger.info(f"Successful Coordinates Request - Rover: {rover}, Coordinate Count: {len(coordinate_response.get('features', []))}")
         return enhanced_coordinate_response
     except Exception as e:
-        logger.error(f"Error processing coordinate request for rover: {rover}")
+        logger.error(f"Unsuccessful Coordinates Request - Rover: {rover}, Error: {e}")
         return {"features": []}
     
 def create_final_coordinates_json(all_rover_coordinate_results, logger):
-    logger.info("Creating coordinates final .json")
+    logger.info("Creating Coordinates Batch File")
     all_rover_coordinate_results = list(all_rover_coordinate_results)
     all_coordinates = []
     for result in all_rover_coordinate_results:
@@ -50,14 +50,14 @@ def create_final_coordinates_json(all_rover_coordinate_results, logger):
         "ingestion_date": ingestion_timestamp
     }
 
-    logger.info(f"Created file: - Name: {filename}, Coordinate Count: {coordinate_count}")
+    logger.info(f"Created Coordinates Batch - File: {filename}, Coordinate Count: {coordinate_count}")
     return final_coordinates_json
 
 def generate_tasks_for_coordinates_batch(rovers, logger):
-    logger.info("Generating tasks for coordinate DAG run")
+    logger.info("Generating Tasks for Coordinates DAG")
     tasks = []
     for rover in rovers:
         tasks.append({"rover": rover})
 
-    logger.info(f"{len(tasks)} task(s) scheduled for this DAG run")
+    logger.info(f"{len(tasks)} Tasks Generated")
     return tasks

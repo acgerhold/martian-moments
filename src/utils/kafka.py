@@ -4,6 +4,20 @@ from kafka import KafkaProducer
 from datetime import datetime, timezone
 import os
 
+def parse_kafka_message(args, topic_name, logger):
+    payload = json.loads(args[-1].value())
+
+    match topic_name:
+        case "minio-events":
+            return urllib.parse.unquote(payload.get('Key', ''))
+        case "ingestion-scheduling":
+            return payload.get('schedule')
+        case "snowflake-load-complete":
+            return payload.get('filepath')
+        case _:
+            logger.warning(f"Unknown topic: {topic_name}")
+            return payload
+
 def parse_message(args, logger):
     message = args[-1]
     try:
@@ -13,7 +27,7 @@ def parse_message(args, logger):
         logger.info(f"Message received - Key: {key}")
         return {"data": key, "event": val}
     except Exception as e:
-        logger.error(f"Error parsing message - Error: {e}")
+        logger.error(f"Error Parsing Message - Key: {key}, Value: {val}, Error: {e}")
         return {"error": str(e)}
     
 def extract_filepath_from_message(events, logger):
