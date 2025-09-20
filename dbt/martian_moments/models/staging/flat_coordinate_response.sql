@@ -13,5 +13,6 @@ SELECT
     coordinate.value:properties.SCLK_START::int as sclk_start,
     coordinate.value:properties.SCLK_END::int as sclk_end  
 FROM 
-    {{ source('MARS_BRONZE', 'RAW_COORDINATE_RESPONSE') }},
+    {{ source('MARS_BRONZE', 'RAW_COORDINATE_RESPONSE') }} rcr,
     LATERAL FLATTEN(input => parse_json(coordinates)) as coordinate
+    WHERE rcr.ingestion_date = (SELECT MAX(ingestion_date) FROM {{ source('MARS_BRONZE', 'RAW_COORDINATE_RESPONSE') }})

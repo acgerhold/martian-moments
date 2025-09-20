@@ -20,11 +20,11 @@ def extract_photos_from_nasa(rover: str, sol: int, logger):
         logger.error(f"Error processing photos request for rover: {rover} on sol: {sol}: {e}")
         return {"photos": []}
     
-def create_final_photos_json(batch, all_rover_photo_results, logger):
+def create_final_photos_json(all_rover_photo_results, sol_range, logger):
         logger.info("Creating photos final .json")
         all_rover_photo_results = list(all_rover_photo_results)
-        sol_start = min(batch)
-        sol_end = max(batch)
+        sol_start = min(sol_range)
+        sol_end = max(sol_range)
         all_photos = []
         for result in all_rover_photo_results:
             photos = result.get('photos', [])
@@ -47,12 +47,25 @@ def create_final_photos_json(batch, all_rover_photo_results, logger):
         logger.info(f"Created file - Name: {filename}, Date: {ingestion_timestamp}, Photo Count: {photo_count}")
         return final_photos_json
 
-def generate_tasks_for_photos_batch(rovers, sol_batch, logger):
+def generate_tasks_for_photos_batch(ingestion_schedule, logger):
     logger.info("Generating tasks for photos DAG run")
     tasks = []
-    for rover in rovers:
+    sol_start = 0
+    sol_end = 0
+    for rover_batch in ingestion_schedule:
+        rover_name = rover_batch["rover_name"]
+
+        if sol_start < rover_batch["sol_start"]:
+            sol_start = rover_batch["sol_start"]
+
+        if sol_end < rover_batch["sol_end"]:
+            sol_end = rover_batch["sol_end"]
+
+        sol_batch = list(range(rover_batch["sol_start"], rover_batch["sol_end"]))
         for sol in sol_batch:
-            tasks.append({"rover": rover, "sol": sol})
+            tasks.append({"rover": rover_name, "sol": sol})
+
+    sol_range = list(range(sol_start, sol_end))
 
     logger.info(f"{len(tasks)} tasks scheduled for this DAG run")
-    return tasks
+    return {"tasks": tasks, "sol_range": sol_range}

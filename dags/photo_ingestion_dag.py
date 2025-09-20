@@ -1,27 +1,47 @@
-from airflow.sdk import dag, task
-from datetime import datetime, timezone
+from airflow.providers.common.messaging.triggers.msg_queue import MessageQueueTrigger
+from airflow.sdk import dag, task, Asset, AssetWatcher
 import sys
 
 sys.path.append('/opt/airflow')
 from src.ingestion.photos import extract_photos_from_nasa, create_final_photos_json, generate_tasks_for_photos_batch
-from src.config import MARS_ROVERS, SOL_BATCH
+from src.config import INGESTION_SCHEDULING_TOPIC
 from src.utils.minio import upload_json_to_minio
 from src.utils.logger import setup_logger
+from src.utils.kafka import parse_message, extract_ingestion_schedule_from_message
+
+def apply_function(*args, **kwargs):
+    logger = setup_logger('apply_function_task', 'snowflake_load_dag.log', 'loading')
+    ingestion_schedule_msg = parse_message(args, logger)
+    return ingestion_schedule_msg
+
+trigger = MessageQueueTrigger(
+    queue=f"kafka://kafka:9092/{INGESTION_SCHEDULING_TOPIC}",
+    apply_function="photo_ingestion_dag.apply_function"
+)
+
+ingestion_scheduling_asset = Asset(
+    name="ingestion_scheduling_topic_asset", watchers=[AssetWatcher(name="ingestion_scheduling_watcher", trigger=trigger)]
+)
 
 @dag(
     dag_id="mars_rover_photos_ingestion",
-    start_date=datetime(2025, 1, 1),
-    schedule=None,
-    catchup=False,
+    schedule=[ingestion_scheduling_asset],
     tags=["Ingestion", "Photos", "MinIO"]
 )
 def mars_rover_photos_ingestion_dag():
+
+    @task
+    def extract_ingestion_schedule_from_message_task(triggering_asset_events=None):
+        logger = setup_logger('extract_ingestion_schedule_from_message_task', 'photo_ingestion_dag.log', 'ingestion')
+        ingestion_schedule = extract_ingestion_schedule_from_message(triggering_asset_events[ingestion_scheduling_asset], logger)
+        print(ingestion_schedule)
+        return ingestion_schedule
     
     @task
-    def generate_tasks_for_batch_task():
+    def generate_tasks_for_batch_task(ingestion_schedule):
         logger = setup_logger('get_ingestion_config_task', 'photo_ingestion_dag.log', 'ingestion')     
-        tasks = generate_tasks_for_photos_batch(MARS_ROVERS, SOL_BATCH, logger)  
-        return tasks
+        batch = generate_tasks_for_photos_batch(ingestion_schedule, logger)  
+        return batch
 
     @task
     def fetch_and_collect_rover_photos_task(rover: str, sol: int):
@@ -30,14 +50,24 @@ def mars_rover_photos_ingestion_dag():
         return photos_result
 
     @task
-    def create_combined_batch_file_task(all_rover_photo_results: list):
+    def extract_tasks_from_batch(batch):
+        return batch["tasks"]
+    
+    @task 
+    def extract_sol_range_from_batch(batch):
+        return batch["sol_range"]
+
+    @task
+    def create_combined_batch_file_task(all_rover_photo_results: list, sol_range):
         logger = setup_logger('create_combined_batch_file_task', 'photo_ingestion_dag.log', 'ingestion')
-        final_photos_json = create_final_photos_json(SOL_BATCH, all_rover_photo_results, logger)
+        final_photos_json = create_final_photos_json(all_rover_photo_results, sol_range, logger)
         upload_json_to_minio(final_photos_json, logger)
 
-
-    config = generate_tasks_for_batch_task()
-    all_rover_photo_results = fetch_and_collect_rover_photos_task.expand_kwargs(config)
-    create_combined_batch_file_task(all_rover_photo_results)
+    ingestion_schedule = extract_ingestion_schedule_from_message_task()
+    batch = generate_tasks_for_batch_task(ingestion_schedule)
+    tasks = extract_tasks_from_batch(batch)
+    sol_range = extract_sol_range_from_batch(batch)
+    all_rover_photo_results = fetch_and_collect_rover_photos_task.expand_kwargs(tasks)
+    create_combined_batch_file_task(all_rover_photo_results, sol_range)
 
 dag = mars_rover_photos_ingestion_dag()

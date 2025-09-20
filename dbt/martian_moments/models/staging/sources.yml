@@ -22,6 +22,14 @@ sources:
             tests:
               - not_null
               - unique
+      - name: RAW_MANIFEST_RESPONSE
+        description: "Raw manifest response data from NASA API"
+        columns:
+        - name: manifests
+          description: "Source JSON data"
+          tests:
+            - not_null
+            - unique
   - name: MARS_SILVER
     description: "Silver layer tables from Snowflake"
     database: MARS_DB
@@ -86,6 +94,35 @@ sources:
             tests:
               - not_null
               - unique
+      - name: FLAT_MANIFEST_RESPONSE
+        description: "Flattened 'manifests' column from RAW_MANIFEST_RESPONSE"
+        columns:
+          - name: rover_name
+            description: "Name of rover"
+            tests:
+              - not_null
+              - unique
+      - name: VALIDATION_CAMERA_GAPS
+        description: "View showing difference between manifest data and photos data for individual sol records"
+        columns:
+        - name: rover_name
+          description: "Name of rover"
+          tests:
+            - not_null
+      - name: VALIDATION_ROVER_GAPS
+        description: "View showing difference between manifest data and photos data for total sol records"
+        columns:
+        - name: rover_name
+          description: "Name of rover"
+          tests:
+            - not_null
+      - name: INGESTION_PLANNING
+        description: "View showing a summary of validation camera/rover gaps and a schedule for next ingestion batch."
+        columns:
+        - name: rover_name
+          description: "Name of rover"
+          tests:
+            - not_null
 
 models:
   - name: flat_photo_response

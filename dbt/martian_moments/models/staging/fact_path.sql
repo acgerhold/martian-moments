@@ -4,7 +4,7 @@
 ) }}
 
 SELECT
-    (rover_id * 10000) + sol AS path_id,
+    ROW_NUMBER() OVER (ORDER BY rover_id, sol, sclk_start) AS path_id,
     dro.rover_id,
     fcr.sol,
     fcr.from_rmc,

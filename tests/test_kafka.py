@@ -3,7 +3,7 @@ import pytest
 import json
 import urllib.parse
 from datetime import datetime, timezone
-from src.utils.kafka import parse_message, extract_filepath_from_message, produce_kafka_message, generate_load_complete_message
+from src.utils.kafka import parse_message, extract_filepath_from_message, produce_kafka_message, generate_load_complete_message, generate_ingestion_schedule_message
 
 @pytest.fixture
 def mock_logger():
@@ -26,13 +26,13 @@ def test_parse_message_success(mock_logger, mock_kafka_message):
     
     result = parse_message(args, mock_logger)
     
-    assert result["filepath"] == test_key
+    assert result["data"] == test_key
     assert result["event"] == test_event_data
     
     # Verify logging
     mock_logger.info.assert_called_once()
     log_msg = mock_logger.info.call_args[0][0]
-    assert "File uploaded - Key:" in log_msg
+    assert "Message received - Key:" in log_msg
     assert test_key in log_msg
 
 def test_parse_message_url_encoded_key(mock_logger, mock_kafka_message):
@@ -47,7 +47,7 @@ def test_parse_message_url_encoded_key(mock_logger, mock_kafka_message):
     result = parse_message(args, mock_logger)
     
     # Should decode the URL-encoded key
-    assert result["filepath"] == original_key
+    assert result["data"] == original_key
     assert result["event"] == test_event_data
 
 def test_parse_message_missing_key(mock_logger, mock_kafka_message):
@@ -60,7 +60,7 @@ def test_parse_message_missing_key(mock_logger, mock_kafka_message):
     result = parse_message(args, mock_logger)
     
     # Should handle missing key gracefully
-    assert result["filepath"] == ""
+    assert result["data"] == ""
     assert result["event"] == test_event_data
 
 def test_parse_message_empty_key(mock_logger, mock_kafka_message):
@@ -72,7 +72,7 @@ def test_parse_message_empty_key(mock_logger, mock_kafka_message):
     
     result = parse_message(args, mock_logger)
     
-    assert result["filepath"] == ""
+    assert result["data"] == ""
     assert result["event"] == test_event_data
 
 def test_parse_message_json_parse_error(mock_logger, mock_kafka_message):
@@ -127,7 +127,7 @@ def test_parse_message_complex_event_data(mock_logger, mock_kafka_message):
     
     result = parse_message(args, mock_logger)
     
-    assert result["filepath"] == test_key
+    assert result["data"] == test_key
     assert result["event"] == complex_event_data
     assert result["event"]["Records"][0]["s3"]["bucket"]["name"] == "mars-photos"
 
@@ -137,7 +137,7 @@ def test_extract_filepath_from_message_success(mock_logger):
     """Test successful filepath extraction"""
     test_filepath = "photos/mars_rover_photos_batch_sol_150.json"
     events = [
-        MagicMock(extra={'payload': {'filepath': test_filepath}})
+        MagicMock(extra={'payload': {'data': test_filepath}})
     ]
     
     result = extract_filepath_from_message(events, mock_logger)
@@ -147,7 +147,7 @@ def test_extract_filepath_from_message_success(mock_logger):
     # Verify logging
     assert mock_logger.info.call_count == 2
     log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
-    assert any("Attempting to extract filepath" in msg for msg in log_calls)
+    assert any("Attempting to extract data from message" in msg for msg in log_calls)
     assert any("Filepath extracted" in msg and test_filepath in msg for msg in log_calls)
 
 def test_extract_filepath_from_message_no_filepath(mock_logger):
@@ -162,12 +162,12 @@ def test_extract_filepath_from_message_no_filepath(mock_logger):
     
     # Verify appropriate logging
     log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
-    assert any("No file to process" in msg for msg in log_calls)
+    assert any("No data to process" in msg for msg in log_calls)
 
 def test_extract_filepath_from_message_empty_filepath(mock_logger):
     """Test filepath extraction when filepath is empty"""
     events = [
-        MagicMock(extra={'payload': {'filepath': ''}})
+        MagicMock(extra={'payload': {'data': ''}})
     ]
     
     result = extract_filepath_from_message(events, mock_logger)
@@ -176,12 +176,12 @@ def test_extract_filepath_from_message_empty_filepath(mock_logger):
     
     # Verify logging
     log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
-    assert any("No file to process" in msg for msg in log_calls)
+    assert any("No data to process" in msg for msg in log_calls)
 
 def test_extract_filepath_from_message_none_filepath(mock_logger):
     """Test filepath extraction when filepath is None"""
     events = [
-        MagicMock(extra={'payload': {'filepath': None}})
+        MagicMock(extra={'payload': {'data': None}})
     ]
     
     result = extract_filepath_from_message(events, mock_logger)
@@ -190,7 +190,7 @@ def test_extract_filepath_from_message_none_filepath(mock_logger):
     
     # Verify logging
     log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
-    assert any("No file to process" in msg for msg in log_calls)
+    assert any("No data to process" in msg for msg in log_calls)
 
 def test_extract_filepath_from_message_missing_payload(mock_logger):
     """Test filepath extraction when payload is missing"""
@@ -223,8 +223,8 @@ def test_extract_filepath_from_message_multiple_events(mock_logger):
     second_filepath = "photos/second_batch.json"
     
     events = [
-        MagicMock(extra={'payload': {'filepath': first_filepath}}),
-        MagicMock(extra={'payload': {'filepath': second_filepath}})
+        MagicMock(extra={'payload': {'data': first_filepath}}),
+        MagicMock(extra={'payload': {'data': second_filepath}})
     ]
     
     result = extract_filepath_from_message(events, mock_logger)
@@ -255,7 +255,7 @@ def test_extract_filepath_from_message_complex_payload(mock_logger):
     events = [
         MagicMock(extra={
             'payload': {
-                'filepath': test_filepath,
+                'data': test_filepath,
                 'bucket': 'mars-photos',
                 'event_type': 's3:ObjectCreated:Put',
                 'timestamp': '2025-09-10T12:00:00Z',
@@ -273,7 +273,7 @@ def test_extract_filepath_from_message_complex_payload(mock_logger):
     
     # Verify logging includes the complex event
     log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
-    assert any("Attempting to extract filepath" in msg for msg in log_calls)
+    assert any("Attempting to extract data" in msg for msg in log_calls)
     assert any("Filepath extracted" in msg and test_filepath in msg for msg in log_calls)
 
 # ====== PRODUCE_KAFKA_MESSAGE TESTS ======
@@ -519,3 +519,212 @@ def test_generate_load_complete_message_timestamp_format(mock_logger):
             # Verify it matches expected format
             expected_timestamp = fixed_time.strftime("%Y-%m-%dT%H:%M:%S")
             assert result["timestamp"] == expected_timestamp
+
+# ====== GENERATE_INGESTION_SCHEDULE_MESSAGE TESTS ======
+
+def test_generate_ingestion_schedule_message_success(mock_logger):
+    """Test successful ingestion schedule message generation"""
+    test_schedule = [
+        {"rover_name": "Curiosity", "sol_start": 100, "sol_end": 150},
+        {"rover_name": "Perseverance", "sol_start": 50, "sol_end": 75}
+    ]
+    
+    with patch('src.utils.kafka.datetime') as mock_datetime:
+        # Mock the datetime to return a fixed time
+        fixed_time = datetime(2025, 9, 15, 14, 30, 45, tzinfo=timezone.utc)
+        mock_datetime.now.return_value = fixed_time
+        mock_datetime.timezone = timezone
+        
+        result = generate_ingestion_schedule_message(test_schedule, mock_logger)
+    
+    expected_message = {
+        "schedule": test_schedule,
+        "event": "success",
+        "timestamp": "2025-09-15T14:30:45"
+    }
+    
+    assert result == expected_message
+    assert result["schedule"] == test_schedule
+    assert result["event"] == "success"
+    assert result["timestamp"] == "2025-09-15T14:30:45"
+    
+    # Verify logging
+    assert mock_logger.info.call_count == 2
+    log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
+    assert any("Attempting to generate ingestion schedule message" in msg for msg in log_calls)
+    assert any("Message produced" in msg for msg in log_calls)
+
+def test_generate_ingestion_schedule_message_single_rover(mock_logger):
+    """Test ingestion schedule message generation with single rover"""
+    test_schedule = [
+        {"rover_name": "Opportunity", "sol_start": 200, "sol_end": 300}
+    ]
+    
+    with patch('src.utils.kafka.datetime') as mock_datetime:
+        fixed_time = datetime(2025, 12, 1, 9, 15, 30, tzinfo=timezone.utc)
+        mock_datetime.now.return_value = fixed_time
+        mock_datetime.timezone = timezone
+        
+        result = generate_ingestion_schedule_message(test_schedule, mock_logger)
+    
+    expected_message = {
+        "schedule": test_schedule,
+        "event": "success",
+        "timestamp": "2025-12-01T09:15:30"
+    }
+    
+    assert result == expected_message
+    assert len(result["schedule"]) == 1
+    assert result["schedule"][0]["rover_name"] == "Opportunity"
+    assert result["schedule"][0]["sol_start"] == 200
+    assert result["schedule"][0]["sol_end"] == 300
+
+def test_generate_ingestion_schedule_message_empty_schedule(mock_logger):
+    """Test ingestion schedule message generation with empty schedule"""
+    test_schedule = []
+    
+    with patch('src.utils.kafka.datetime') as mock_datetime:
+        fixed_time = datetime(2025, 9, 15, 12, 0, 0, tzinfo=timezone.utc)
+        mock_datetime.now.return_value = fixed_time
+        mock_datetime.timezone = timezone
+        
+        result = generate_ingestion_schedule_message(test_schedule, mock_logger)
+    
+    expected_message = {
+        "schedule": [],
+        "event": "success",
+        "timestamp": "2025-09-15T12:00:00"
+    }
+    
+    assert result == expected_message
+    assert result["schedule"] == []
+    assert result["event"] == "success"
+    
+    # Should still log appropriately
+    assert mock_logger.info.call_count == 2
+
+def test_generate_ingestion_schedule_message_complex_schedule(mock_logger):
+    """Test ingestion schedule message generation with complex schedule data"""
+    test_schedule = [
+        {
+            "rover_name": "Curiosity",
+            "sol_start": 1000,
+            "sol_end": 1200,
+            "cameras": ["FHAZ", "RHAZ", "MAST"],
+            "priority": "high"
+        },
+        {
+            "rover_name": "Perseverance", 
+            "sol_start": 500,
+            "sol_end": 600,
+            "cameras": ["NAVCAM_LEFT", "NAVCAM_RIGHT"],
+            "priority": "medium"
+        },
+        {
+            "rover_name": "Spirit",
+            "sol_start": 1,
+            "sol_end": 50,
+            "cameras": ["PANCAM"],
+            "priority": "low"
+        }
+    ]
+    
+    with patch('src.utils.kafka.datetime') as mock_datetime:
+        fixed_time = datetime(2025, 10, 31, 23, 45, 15, tzinfo=timezone.utc)
+        mock_datetime.now.return_value = fixed_time
+        mock_datetime.timezone = timezone
+        
+        result = generate_ingestion_schedule_message(test_schedule, mock_logger)
+    
+    expected_message = {
+        "schedule": test_schedule,
+        "event": "success",
+        "timestamp": "2025-10-31T23:45:15"
+    }
+    
+    assert result == expected_message
+    assert len(result["schedule"]) == 3
+    assert result["schedule"][0]["cameras"] == ["FHAZ", "RHAZ", "MAST"]
+    assert result["schedule"][1]["priority"] == "medium"
+    assert result["schedule"][2]["rover_name"] == "Spirit"
+
+def test_generate_ingestion_schedule_message_none_schedule(mock_logger):
+    """Test ingestion schedule message generation with None schedule"""
+    test_schedule = None
+    
+    with patch('src.utils.kafka.datetime') as mock_datetime:
+        fixed_time = datetime(2025, 9, 15, 16, 20, 10, tzinfo=timezone.utc)
+        mock_datetime.now.return_value = fixed_time
+        mock_datetime.timezone = timezone
+        
+        result = generate_ingestion_schedule_message(test_schedule, mock_logger)
+    
+    expected_message = {
+        "schedule": None,
+        "event": "success",
+        "timestamp": "2025-09-15T16:20:10"
+    }
+    
+    assert result == expected_message
+    assert result["schedule"] is None
+    assert result["event"] == "success"
+
+def test_generate_ingestion_schedule_message_timestamp_format(mock_logger):
+    """Test that timestamp format is consistent and correct for ingestion schedule messages"""
+    test_schedule = [{"rover_name": "Test", "sol_start": 1, "sol_end": 2}]
+    
+    with patch('src.utils.kafka.datetime') as mock_datetime:
+        # Test edge case timestamps
+        test_cases = [
+            datetime(2025, 1, 1, 0, 0, 0, tzinfo=timezone.utc),  # New year
+            datetime(2025, 12, 31, 23, 59, 59, tzinfo=timezone.utc),  # End of year
+            datetime(2025, 6, 15, 12, 30, 45, tzinfo=timezone.utc),  # Mid year
+        ]
+        
+        for i, fixed_time in enumerate(test_cases):
+            mock_datetime.now.return_value = fixed_time
+            mock_datetime.timezone = timezone
+            
+            result = generate_ingestion_schedule_message(test_schedule, mock_logger)
+            
+            # Verify timestamp format
+            timestamp = result["timestamp"]
+            assert len(timestamp) == 19  # YYYY-MM-DDTHH:MM:SS format
+            assert "T" in timestamp
+            assert timestamp.count("-") == 2  # Two dashes in date
+            assert timestamp.count(":") == 2  # Two colons in time
+            
+            # Verify it matches expected format
+            expected_timestamp = fixed_time.strftime("%Y-%m-%dT%H:%M:%S")
+            assert result["timestamp"] == expected_timestamp
+
+def test_generate_ingestion_schedule_message_logging_content(mock_logger):
+    """Test that logging includes the ingestion schedule content"""
+    test_schedule = [
+        {"rover_name": "TestRover", "sol_start": 42, "sol_end": 84}
+    ]
+    
+    with patch('src.utils.kafka.datetime') as mock_datetime:
+        fixed_time = datetime(2025, 9, 15, 10, 10, 10, tzinfo=timezone.utc)
+        mock_datetime.now.return_value = fixed_time
+        mock_datetime.timezone = timezone
+        
+        result = generate_ingestion_schedule_message(test_schedule, mock_logger)
+    
+    # Verify logging includes schedule details
+    assert mock_logger.info.call_count == 2
+    log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
+    
+    # First log should mention the schedule
+    first_log = log_calls[0]
+    assert "Attempting to generate ingestion schedule message" in first_log
+    
+    # Second log should include the complete message
+    second_log = log_calls[1]
+    assert "Message produced" in second_log
+    
+    # Verify the result structure
+    assert "schedule" in result
+    assert "event" in result
+    assert "timestamp" in result
+    assert result["event"] == "success"

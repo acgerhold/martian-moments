@@ -10,24 +10,37 @@ def parse_message(args, logger):
         val = json.loads(message.value())
         key = urllib.parse.unquote(val.get('Key', ''))
 
-        logger.info(f"File uploaded - Key: {key}")
-        return {"filepath": key, "event": val}
+        logger.info(f"Message received - Key: {key}")
+        return {"data": key, "event": val}
     except Exception as e:
         logger.error(f"Error parsing message - Error: {e}")
         return {"error": str(e)}
     
 def extract_filepath_from_message(events, logger):
-    logger.info(f"Attempting to extract filepath - {events}")
+    logger.info(f"Attempting to extract data from message - {events}")
     for event in events:
-        minio_filepath = event.extra.get('payload', {}).get('filepath')
+        filepath = event.extra.get('payload', {}).get('data')
 
-        if not minio_filepath:
-            logger.info("No file to process")
+        if not filepath:
+            logger.info("No data to process")
             return None
         
-        logger.info(f"Filepath extracted - Path: {minio_filepath}")
-        return minio_filepath
+        logger.info(f"Filepath extracted - Data: {filepath}")
+        return filepath
     
+def extract_ingestion_schedule_from_message(events, logger):
+    logger.info(f"Attempting to extract data from message - {events}")
+    for event in events:
+        ingestion_schedule_msg = event.extra.get('payload', {}).get('event')
+        ingestion_schedule = ingestion_schedule_msg.get('schedule')
+
+        if not ingestion_schedule:
+            logger.info("No data to process")
+            return None
+        
+        logger.info(f"Ingestion schedule extracted - {ingestion_schedule}")
+        return ingestion_schedule
+            
 def produce_kafka_message(topic, message_data, logger):
     logger.info(f"Attempting to produce event - Topic: {topic}")
     producer = KafkaProducer(
@@ -49,6 +62,17 @@ def generate_load_complete_message(minio_filepath, logger):
     logger.info(f"Attempting to generate load complete message - Path: {minio_filepath}")
     message = {
         "filepath": minio_filepath,
+        "event": "success",
+        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+    }
+
+    logger.info(f"Message produced - Message: {message}")
+    return message
+
+def generate_ingestion_schedule_message(ingestion_schedule, logger):
+    logger.info(f"Attempting to generate ingestion schedule message - {ingestion_schedule}")
+    message = {
+        "schedule": ingestion_schedule,
         "event": "success",
         "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
     }

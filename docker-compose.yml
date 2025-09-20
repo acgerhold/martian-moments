@@ -137,6 +137,7 @@ services:
       echo 'Creating Kafka topics...' &&
       kafka-topics --create --bootstrap-server kafka:9092 --replication-factor 1 --partitions 3 --topic minio-events --if-not-exists &&
       kafka-topics --create --bootstrap-server kafka:9092 --replication-factor 1 --partitions 3 --topic snowflake-load-complete --if-not-exists &&
+      kafka-topics --create --bootstrap-server kafka:9092 --replication-factor 1 --partitions 3 --topic ingestion-scheduling --if-not-exists &&
       echo 'Topics created successfully!'
       "
     depends_on:
