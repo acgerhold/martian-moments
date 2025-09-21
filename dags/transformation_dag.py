@@ -7,12 +7,12 @@ from src.utils.logger import setup_logger
 from src.utils.dbt import run_dbt_models_by_tag
 from src.utils.snowflake import fetch_results_from_silver_schema
 from src.ingestion.scheduling import generate_ingestion_batches_from_table_results
-from src.utils.kafka import parse_message, produce_kafka_message, generate_ingestion_schedule_message
+from src.utils.kafka import parse_kafka_message, produce_kafka_message, generate_ingestion_schedule_message
 from src.config import GOLD_TAG, INGESTION_PLANNING_VIEW, LOAD_COMPLETE_TOPIC, INGESTION_SCHEDULING_TOPIC
 
 def apply_function(*args, **kwargs):
     logger = setup_logger('apply_function_task', 'transformation_dag.log', 'transformation')
-    load_complete_msg = parse_message(args, logger)
+    load_complete_msg = parse_kafka_message(LOAD_COMPLETE_TOPIC, args, logger)
     return load_complete_msg
 
 trigger = MessageQueueTrigger(

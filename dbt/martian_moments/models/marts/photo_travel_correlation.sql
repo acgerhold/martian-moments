@@ -1,6 +1,6 @@
 {{ config(
     materialized='incremental',
-    unique_key=['name', 'sol', 'image_id'],
+    unique_key=['name', 'sol', 'image_id', 'travel_time_start'],
     incremental_strategy='merge',
     cluster_by=['name', 'sol', 'image_id'],
     tags='aggregate'

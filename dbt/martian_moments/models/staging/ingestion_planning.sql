@@ -28,7 +28,7 @@ ingestion_tasks AS (
     SELECT 
         rover_name,
         start_sol,
-        LEAST(start_sol + 50, max_sol) as end_sol,
+        1250 as end_sol,
         max_sol,        
         total_sols_needed,
         estimated_batches,

@@ -4,19 +4,42 @@ from kafka import KafkaProducer
 from datetime import datetime, timezone
 import os
 
-def parse_kafka_message(args, topic_name, logger):
+def parse_kafka_message(topic_name, args, logger):
     payload = json.loads(args[-1].value())
+    logger.info(f"Processing Message - Topic: {topic_name}, Payload: {payload}")
 
     match topic_name:
         case "minio-events":
-            return urllib.parse.unquote(payload.get('Key', ''))
-        case "ingestion-scheduling":
-            return payload.get('schedule')
+            minio_upload_path = urllib.parse.unquote(payload.get('Key', ''))
+            logger.info(f"Parsed Message - Topic: {topic_name}, Upload Path: {minio_upload_path}")
+            return minio_upload_path
         case "snowflake-load-complete":
-            return payload.get('filepath')
+            tmp_jsonl_staging_path = payload.get('tmp_jsonl_staging_path')
+            logger.info(f"Parsed Message - Topic: {topic_name}, Staging Path: {tmp_jsonl_staging_path}")
+            return tmp_jsonl_staging_path
+        case "ingestion-scheduling":
+            ingestion_schedule = payload.get('schedule')
+            logger.info(f"Parsed Message - Topic: {topic_name}, Ingestion Schedule: {ingestion_schedule}")
+            return ingestion_schedule
         case _:
             logger.warning(f"Unknown topic: {topic_name}")
             return payload
+
+def unwrap_airflow_asset_payload(events, logger):
+    logger.info(f"Unwrapping data from AssetWatcher - Events: {events}")
+
+    for event in events:
+        payload = event.extra.get('payload')
+
+        if not payload:
+            logger.info("No payload found in AssetWatcher event")
+            continue
+
+        logger.info(f"Extracted from AssetWatcher event - Payload: {payload}")
+        return payload
+    
+    logger.info("No event to process")
+    return None
 
 def parse_message(args, logger):
     message = args[-1]
@@ -29,31 +52,6 @@ def parse_message(args, logger):
     except Exception as e:
         logger.error(f"Error Parsing Message - Key: {key}, Value: {val}, Error: {e}")
         return {"error": str(e)}
-    
-def extract_filepath_from_message(events, logger):
-    logger.info(f"Attempting to extract data from message - {events}")
-    for event in events:
-        filepath = event.extra.get('payload', {}).get('data')
-
-        if not filepath:
-            logger.info("No data to process")
-            return None
-        
-        logger.info(f"Filepath extracted - Data: {filepath}")
-        return filepath
-    
-def extract_ingestion_schedule_from_message(events, logger):
-    logger.info(f"Attempting to extract data from message - {events}")
-    for event in events:
-        ingestion_schedule_msg = event.extra.get('payload', {}).get('event')
-        ingestion_schedule = ingestion_schedule_msg.get('schedule')
-
-        if not ingestion_schedule:
-            logger.info("No data to process")
-            return None
-        
-        logger.info(f"Ingestion schedule extracted - {ingestion_schedule}")
-        return ingestion_schedule
             
 def produce_kafka_message(topic, message_data, logger):
     logger.info(f"Attempting to produce event - Topic: {topic}")
@@ -65,23 +63,12 @@ def produce_kafka_message(topic, message_data, logger):
     try:
         producer.send(topic, value=message_data)
         producer.flush()
-        logger.info(f"Produced message - Topic: {topic}")
+        logger.info(f"Produced message - Topic: {topic}, Message: {message_data}")
     except Exception as e:
         logger.error(f"Failed to produce message - Topic: {topic}, Error: {e}")
         raise
     finally:
         producer.close()
-
-def generate_load_complete_message(minio_filepath, logger):
-    logger.info(f"Attempting to generate load complete message - Path: {minio_filepath}")
-    message = {
-        "filepath": minio_filepath,
-        "event": "success",
-        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
-    }
-
-    logger.info(f"Message produced - Message: {message}")
-    return message
 
 def generate_ingestion_schedule_message(ingestion_schedule, logger):
     logger.info(f"Attempting to generate ingestion schedule message - {ingestion_schedule}")
