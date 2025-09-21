@@ -63,7 +63,7 @@ def copy_file_to_snowflake(tmp_jsonl_staging_path, logger):
             "tmp_jsonl_staging_path": tmp_jsonl_staging_path,
             "status": "success",
             "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
-        }
+        } 
 
 def fetch_results_from_silver_schema(table_name, logger):
     logger.info(f"Attempting to fetch results - Table: {table_name}")
