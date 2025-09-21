@@ -3,11 +3,11 @@ from airflow.sdk import dag, task, Asset, AssetWatcher
 import sys 
 
 sys.path.append('/opt/airflow')
+from src.config import MINIO_EVENTS_TOPIC, LOAD_COMPLETE_TOPIC
+from src.utils.kafka import parse_kafka_message, unwrap_airflow_asset_payload, produce_kafka_message
 from src.utils.minio import extract_json_as_jsonl_from_minio
-from src.utils.kafka import parse_kafka_message, unwrap_airflow_asset_payload, produce_kafka_message, generate_load_complete_message
 from src.utils.snowflake import copy_file_to_snowflake
 from src.utils.logger import setup_logger
-from src.config import MINIO_EVENTS_TOPIC, LOAD_COMPLETE_TOPIC
 
 def apply_function(*args, **kwargs):
     logger = setup_logger('apply_function_task', 'snowflake_load_dag.log', 'loading')
@@ -51,7 +51,6 @@ def load_photos_to_snowflake_dag():
     @task
     def produce_load_complete_message_task(load_complete_message):
         logger = setup_logger('produce_load_complete_message_task', 'snowflake_load_dag.log', 'loading')
-        # event_message = generate_load_complete_message(tmp_jsonl_filepath, logger)
         produce_kafka_message(LOAD_COMPLETE_TOPIC, load_complete_message, logger)
 
     minio_upload_path = extract_minio_upload_path_from_payload_task()
@@ -59,4 +58,4 @@ def load_photos_to_snowflake_dag():
     load_complete_message = load_to_snowflake_task(tmp_jsonl_staging_path)
     produce_load_complete_message_task(load_complete_message)
     
-load_photos_to_snowflake_dag()
+dag = load_photos_to_snowflake_dag()

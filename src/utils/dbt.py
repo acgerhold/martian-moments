@@ -1,6 +1,5 @@
 from src.config import DBT_PROJECT_DIR
 import subprocess
-import time
 
 def run_dbt_models_by_tag(tag, logger):
     logger.info(f"Attempting dbt Run - Tag: {tag}")
@@ -13,12 +12,9 @@ def run_dbt_models_by_tag(tag, logger):
             check=True
         )
 
-        if result.returncode != 0:
-            raise Exception(f"Failed dbt Run - Tag: {tag}, Error: {result.stderr}")
-
         logger.info(f"Succesful dbt Run - Tag: {tag}")
-        return f"{tag}: Success"
+        return True
                     
     except subprocess.CalledProcessError as e:
         logger.error(f"Unsuccessful dbt Run - Tag: {tag}, Error: {e.returncode}")
-        raise
+        return False

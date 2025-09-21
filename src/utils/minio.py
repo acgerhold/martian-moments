@@ -46,14 +46,13 @@ def upload_json_to_minio(final_json, logger):
     logger.info(f"Uploaded to MinIO - File: {filename}")    
 
 def extract_json_as_jsonl_from_minio(minio_upload_path, logger):
-    minio_client = get_minio_client()
     logger.info(f"Attempting extract from MinIO - Path: {minio_upload_path}")
+    minio_client = get_minio_client()  
     tmp_dir = tempfile.gettempdir()
+
     minio_file = minio_upload_path.replace(f"{MINIO_BUCKET}/", "", 1)
     tmp_staging_path = os.path.join(tmp_dir, os.path.basename(minio_file))
-
     minio_client.fget_object(MINIO_BUCKET, minio_file, tmp_staging_path)
-    logger.info(f"Extracted from MinIO - File: {minio_upload_path}")
     
     with open(tmp_staging_path, 'r') as f:
         data = json.load(f)
@@ -64,4 +63,5 @@ def extract_json_as_jsonl_from_minio(minio_upload_path, logger):
     
     os.remove(tmp_staging_path)
     
+    logger.info(f"Converted to JSONL - Path: {tmp_jsonl_staging_path}")
     return tmp_jsonl_staging_path
