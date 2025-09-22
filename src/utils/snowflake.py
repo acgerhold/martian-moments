@@ -70,19 +70,20 @@ def fetch_next_ingestion_batch(run_dbt_models_success, logger):
         logger.info(f"Attempting to fetch next ingestion batch")
         snowflake_connection = get_snowflake_connection()
         snowflake_cursor = snowflake_connection.cursor()
-        snowflake_cursor.execute(f"USE SCHEMA {os.getenv('SNOWFLAKE_DATABASE')}.{os.getenv('SNOWFLAKE_SCHEMA_SILVER')};")
 
-        try:  
-            table_results = snowflake_cursor.execute(f"SELECT * FROM INGESTION_PLANNING").fetchall()
+        try: 
+            snowflake_cursor.execute(f"USE SCHEMA {os.getenv('SNOWFLAKE_DATABASE')}.{os.getenv('SNOWFLAKE_SCHEMA_SILVER')};")
+            table_results = snowflake_cursor.execute(f"SELECT * FROM INGESTION_PLANNING;").fetchall()
             columns = [desc[0] for desc in snowflake_cursor.description]
             table_results_dataframe = pd.DataFrame(table_results, columns=columns)
+            logger.info(f"Fetched results from INGESTION_PLANNING - Results: {table_results_dataframe}")
         except Exception as e:
             logger.error(f"Error fetching results from INGESTION_PLANNING - Error: {e}")
 
         try:
             ingestion_batches = []
             for _, row in table_results_dataframe.iterrows():
-                if row['START_SOL'] < row['MAX_SOL']:
+                if not row['UP_TO_DATE']:
                     batch = {
                         "rover_name": row['ROVER_NAME'],
                         "sol_start": row['START_SOL'],
