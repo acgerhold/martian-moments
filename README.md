@@ -1,34 +1,39 @@
 # martian-moments
 
-Automated data pipeline transforming NASA Mars rover images into timelapse videos. Organizes photos by sol, camera, and mission for YouTube publishing with analytics dashboard.
+Event-driven data pipeline for ingesting, processing, and analyzing NASA Mars rover mission data. Collects photos, coordinate tracking, and mission manifests from multiple rovers using automated batch processing with Kafka-triggered workflows.
 
 ## 🚀 Overview
 
-Pulls images from NASA's Mars rover missions (Curiosity, Perseverance, Spirit, Opportunity), processes them into organized datasets, and generates automated timelapse videos for YouTube. Includes analytics dashboard for mission data insights and handles complex data harmonization across multiple NASA data sources.
+Automated ingestion system that pulls data from NASA's Mars rover missions (Curiosity, Perseverance, Spirit, Opportunity) and processes it through a multi-stage data pipeline. The system handles complex batch scheduling, real-time event processing, and data transformation for analytics and future timelapse video generation.
 
 ## 🛠️ Tech Stack
 
-**Data Pipeline:**
-- Python - Core processing and automation
-- Apache Airflow - Workflow orchestration and scheduling
-- Snowflake - Data warehouse and analytics database
-- MinIO - S3-compatible object storage for images and videos
+**Data Pipeline & Orchestration:**
+- Apache Airflow - Workflow orchestration with event-driven DAGs
+- Apache Kafka - Message streaming and event coordination
+- Python - Core processing, API integrations, and data transformation
+- Docker & Docker Compose - Containerized deployment
 
-**Image & Video Processing:**
-- Pillow - Image format conversion and basic operations
-- NumPy - Numerical computing and array operations
-- MoviePy - Video generation and timelapse creation
-- FuzzyWuzzy - Filename matching between NASA APIs and PDS archives
+**Data Storage & Processing:**
+- Snowflake - Data warehouse with Bronze/Silver/Gold layers
+- MinIO - S3-compatible object storage for JSON data files
+- dbt - Data transformation and modeling framework
+- PostgreSQL - Airflow metadata database
+- Redis - Celery task queue backend
 
-**Analytics & Visualization:**
-- Pandas - Data manipulation and analysis
-- CubeJS - Analytics API and data modeling
-- Metabase - Business intelligence and dashboards
+**Data Integration:**
+- NASA Mars Rover Photos API - Image metadata and mission data
+- NASA MMGIS Traverse Data - Rover coordinate tracking (GeoJSON)
+- Snowflake Connector - Direct data loading and SQL operations
+- Pandas - Data manipulation and batch processing
 
 **Infrastructure:**
-- Docker - Containerization and deployment
+- Confluent Kafka - Enterprise messaging platform
+- MinIO S3 Events - Automated file upload notifications
+- Celery - Distributed task execution
+- pytest - Comprehensive testing framework
 
-*Tech stack is iterative and subject to change as the project evolves.*
+*Architecture is event-driven and designed for scalable, automated data processing workflows.*
 
 ## 🗂️ Project Documentation
 

@@ -45,24 +45,23 @@ def upload_json_to_minio(final_json, logger):
     )
     logger.info(f"Uploaded to MinIO - File: {filename}")    
 
-def extract_json_as_jsonl_from_minio(minio_filepath, logger):
-    minio_client = get_minio_client()
-    logger.info(f"Attempting extract from MinIO - Path: {minio_filepath}")
+def extract_json_as_jsonl_from_minio(minio_upload_path, logger):
+    logger.info(f"Attempting extract from MinIO - Path: {minio_upload_path}")
+    minio_client = get_minio_client()  
     tmp_dir = tempfile.gettempdir()
-    minio_filepath = minio_filepath.replace(f"{MINIO_BUCKET}/", "", 1)
-    tmp_filepath = os.path.join(tmp_dir, os.path.basename(minio_filepath))
 
-    minio_client.fget_object(MINIO_BUCKET, minio_filepath, tmp_filepath)
-    logger.info(f"Extracted from MinIO - File: {minio_filepath}")
+    minio_file = minio_upload_path.replace(f"{MINIO_BUCKET}/", "", 1)
+    tmp_staging_path = os.path.join(tmp_dir, os.path.basename(minio_file))
+    minio_client.fget_object(MINIO_BUCKET, minio_file, tmp_staging_path)
     
-    with open(tmp_filepath, 'r') as f:
+    with open(tmp_staging_path, 'r') as f:
         data = json.load(f)
     
-    jsonl_path = tmp_filepath.replace('.json', '.jsonl')
-    with open(jsonl_path, 'w') as f:
+    tmp_jsonl_staging_path = tmp_staging_path.replace('.json', '.jsonl')
+    with open(tmp_jsonl_staging_path, 'w') as f:
         f.write(json.dumps(data) + '\n')
     
-    os.remove(tmp_filepath)
+    os.remove(tmp_staging_path)
     
-    logger.info(f"Extracted from MinIO - Path: {jsonl_path}")
-    return jsonl_path
+    logger.info(f"Converted to JSONL - Path: {tmp_jsonl_staging_path}")
+    return tmp_jsonl_staging_path

@@ -14,5 +14,6 @@ SELECT
     manifest.value:photos::variant as photos    
 FROM 
     {{ source('MARS_BRONZE', 'RAW_MANIFEST_RESPONSE') }} rpr,
-LATERAL FLATTEN(input => parse_json(rpr.manifests)) as manifest
-WHERE rpr.ingestion_date = (SELECT MAX(ingestion_date) FROM {{ source('MARS_BRONZE', 'RAW_MANIFEST_RESPONSE') }})
+    LATERAL FLATTEN(input => parse_json(rpr.manifests)) as manifest
+WHERE 
+    rpr.ingestion_date = (SELECT MAX(ingestion_date) FROM {{ source('MARS_BRONZE', 'RAW_MANIFEST_RESPONSE') }})

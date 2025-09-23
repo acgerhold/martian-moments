@@ -1,73 +1,102 @@
-# Project Problems and Goals
+# Project Objectives and Goals
 
-Technical challenges and objectives for the Mars rover timelapse data pipeline.
+Technical objectives and business goals for the Mars rover data pipeline system.
 
-## 1. Image Replacement & Normalization (Rover API → PDS Archive)
+## 1. Event-Driven Data Ingestion Architecture
 
-**Problem:**  
-NASA's Mars Rover API returns image metadata for all rovers, but image URLs for Spirit and Opportunity are defunct or redirect due to broken links.
+**Objective:**  
+Build a scalable, automated ingestion system that can process NASA Mars rover data across multiple rovers and data types using event-driven workflows.
 
-**Goal:**  
-Replace broken image links with valid equivalents from the PDS Imaging Archive using filename matching.
+**Implementation:**
+- Kafka-based message streaming for DAG coordination and event triggering
+- Airflow DAGs triggered by Kafka messages for photos, manifests, and coordinate data
+- MinIO S3 events automatically trigger downstream processing when files are uploaded
+- Batch scheduling system that dynamically generates ingestion tasks based on data availability
 
-- Extract metadata from the API and map filenames to PDS directory structures
-- Add lookup step in pipeline to attach correct image URLs based on filename and camera
-- Run ingestion once for inactive rovers (Spirit and Opportunity)
+**Current Status:** ✅ Implemented
+- Photo ingestion DAG with Kafka trigger
+- Manifest and coordinate ingestion DAGs
+- MinIO → Snowflake loading pipeline
+- Automated dbt transformation triggered by load completion
 
-## 2. Temporal Normalization of Rover Path Data (Curiosity)
+## 2. Multi-Source NASA Data Integration
 
-**Problem:**  
-Curiosity's traverse data is not organized by Sol numbers or Earth dates like Perseverance, making synchronization with photo and weather data difficult.
+**Objective:**  
+Integrate and harmonize data from multiple NASA APIs and data sources into a unified data model.
 
-**Goal:**  
-Reconstruct rover path as a daily (sol-level) timeline by interpolating coordinate data and approximating Sols.
+**Data Sources:**
+- **NASA Mars Rover Photos API** - Image metadata for all rovers (Curiosity, Perseverance, Spirit, Opportunity)
+- **NASA MMGIS Traverse Data** - GeoJSON coordinate tracking for Perseverance rover
+- **NASA Manifest API** - Mission summaries and Sol-level statistics per rover
 
-- Estimate Sol by dividing total distance into average meters per Sol
-- Synchronize coordinate data with image metadata via estimated Sol
-- Use Perseverance movement patterns to validate assumptions
-- Build consistent Sol-indexed path data from raw coordinate points
+**Current Status:** ✅ Photos API integration, 🔄 Traverse data (Perseverance only)
+- Photos ingestion with Sol-based batching
+- JSON data storage in MinIO with organized folder structure
+- Snowflake Bronze layer for raw data storage
 
-## 3. Image Quality & Type Standardization for Video Production
+## 3. Scalable Data Warehouse Architecture
 
-**Problem:**  
-Raw rover images vary significantly in resolution, color processing, file format, and quality across different cameras and missions.
+**Objective:**  
+Implement a modern data warehouse using medalion architecture (Bronze/Silver/Gold) for analytics and future applications.
 
-**Goal:**  
-Implement image preprocessing and filtering to create standardized, high-quality video frames.
+**Architecture:**
+- **Bronze Layer** - Raw JSON data from NASA APIs stored in Snowflake
+- **Silver Layer** - Cleaned, normalized, and joined data models using dbt
+- **Gold Layer** - Aggregated analytics tables and summary views
 
-- **Color Correction:** Normalize white balance and exposure across different lighting conditions and camera sensors
-- **Resolution Standardization:** Resize/crop images to consistent dimensions while preserving aspect ratios  
-- **Quality Filtering:** Automatically detect and exclude corrupted, overexposed, or heavily artifacted images
-- **Format Conversion:** Convert various source formats (JPEG, PNG, IMG) to consistent output format
-- **Temporal Consistency:** Apply consistent processing parameters across sequences to avoid flickering
-- **Camera-Specific Profiles:** Create preprocessing pipelines tailored to each camera's characteristics
+**Current Status:** ✅ Bronze layer, 🔄 Silver/Gold transformations
+- dbt models for staging and dimensional modeling
+- Automated transformation DAG triggered by data loads
+- Data quality tests and validation models
 
-## 4. Multi-Source Data Harmonization (API + PDS + MMGIS)
+## 4. Automated Batch Processing and Scheduling
 
-**Problem:**  
-Data from different missions is inconsistent in format and availability across multiple data sources.
+**Objective:**  
+Intelligent batch processing that optimizes API calls and manages data ingestion efficiently across multiple rovers and time periods.
 
-**Goal:**  
-Create unified schema and data model for handling rovers, positions, images, and metadata.
+**Features:**
+- Dynamic Sol range batching based on data availability
+- Intelligent scheduling to avoid API rate limits
+- Gap detection and backfill capabilities
+- Parallel processing of multiple rovers and data types
 
-- Define consistent fields: sol, earth_date, rover_name, camera, coordinates, image_url, processing_metadata
-- Write custom extractors for each data source (API, directory crawler, JSON traverse)
-- Detect and resolve mismatches or missing values (image links, missing coordinates)
-- Track image processing decisions for analytics and quality control
+**Current Status:** ✅ Implemented
+- Configurable batch sizes and Sol ranges
+- Kafka-based scheduling coordination
+- Parallel DAG execution with proper dependencies
 
-## 5. Time-Series Construction for Timelapse Visualization
+## 5. Comprehensive Data Quality and Monitoring
 
-**Problem:**  
-Raw image sequences are unordered, unequally spaced, and contain gaps that make smooth timelapse creation challenging.
+**Objective:**  
+Ensure data integrity and provide operational visibility into pipeline performance.
 
-**Goal:**  
-Build frame-ready image sequences by organizing images by camera and Sol, filtering incomplete sets.
+**Features:**
+- dbt data quality tests for all models
+- Comprehensive logging throughout the pipeline
+- Error handling and retry mechanisms
+- Data validation and anomaly detection
 
-- Select specific cameras and create filtered lists of quality images
-- Interpolate missing days or integrate rover path data for spatial context
-- Export frame sequences optimized for video encoding
-- Handle temporal gaps and maintain consistent frame rates across different mission periods
+**Current Status:** 🔄 In Progress
+- Logger utility with structured logging
+- dbt tests for data validation
+- Error handling in ingestion modules
+- Pipeline monitoring via Airflow UI
+
+## 6. Future: Image Processing and Timelapse Generation
+
+**Future Objective:**  
+Extend the pipeline to download actual rover images and generate automated timelapse videos.
+
+**Planned Features:**
+- Image download and storage in MinIO
+- Image quality filtering and preprocessing
+- Camera-specific timelapse generation
+- Video encoding and output management
+
+**Current Status:** 📋 Planned
+- Infrastructure ready for image storage
+- Metadata pipeline provides foundation for image processing
 
 ---
 
-*Technical objectives for automated Mars rover image processing and timelapse generation.*
+*Technical objectives for the Mars rover data ingestion and processing pipeline.*

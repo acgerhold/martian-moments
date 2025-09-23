@@ -3,6 +3,18 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# Coverage reports
+htmlcov/
+tests/htmlcov/
+.coverage
+tests/.coverage
+coverage.xml
+tests/coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
 # C extensions
 *.so
 
@@ -210,3 +222,4 @@ __marimo__/
 
 logs/
 notes.txt
+.vscode
