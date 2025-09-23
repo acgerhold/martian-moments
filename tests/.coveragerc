@@ -1,0 +1,37 @@
+[run]
+# Store the .coverage file in the tests directory
+data_file = tests/.coverage
+
+# Only measure coverage for the src directory
+source = src
+
+# Exclude test files themselves from coverage
+omit = 
+    tests/*
+    */test_*
+    */__pycache__/*
+    */.*
+
+[report]
+# Show missing line numbers
+show_missing = True
+
+# Fail if coverage is below this percentage
+fail_under = 90
+
+# Skip files with no code
+skip_empty = True
+
+# Sort by coverage percentage (lowest first)
+sort = Cover
+
+[html]
+# Directory for HTML coverage report
+directory = tests/htmlcov
+
+# Show contexts (which test hit each line)
+show_contexts = True
+
+[xml]
+# XML report location (useful for CI/CD)
+output = tests/coverage.xml

@@ -50,6 +50,29 @@ def sample_coordinates_json():
         "ingestion_date": "2025-09-13T15:30:00"
     }
 
+@pytest.fixture
+def sample_manifests_json():
+    return {
+        "filename": "mars_rover_manifests_2025-09-13T15:30:00.json",
+        "manifests": [
+            {
+                "name": "Curiosity",
+                "landing_date": "2012-08-05", 
+                "status": "active",
+                "max_sol": 4000,
+                "total_photos": 695000
+            },
+            {
+                "name": "Perseverance",
+                "landing_date": "2021-02-18",
+                "status": "active", 
+                "max_sol": 1000,
+                "total_photos": 250000
+            }
+        ],
+        "ingestion_date": "2025-09-13T15:30:00"
+    }
+
 # ====== GET_MINIO_CLIENT TESTS ======
 
 @patch.dict(os.environ, {
@@ -161,6 +184,33 @@ def test_upload_json_to_minio_coordinates(mock_minio_client, sample_coordinates_
         assert any("Attempting upload to MinIO" in msg for msg in log_calls)
         assert any("Uploaded to MinIO" in msg for msg in log_calls)
 
+def test_upload_json_to_minio_manifests(mock_minio_client, sample_manifests_json, mock_logger):
+    """Test uploading manifest JSON to MinIO with correct routing"""
+    mock_minio_client.bucket_exists.return_value = False
+    
+    with patch('src.utils.minio.MINIO_BUCKET', 'test-bucket'), \
+         patch('src.utils.minio.get_minio_client', return_value=mock_minio_client):
+        upload_json_to_minio(sample_manifests_json, mock_logger)
+        
+        # Verify bucket creation
+        mock_minio_client.bucket_exists.assert_called_once_with('test-bucket')
+        mock_minio_client.make_bucket.assert_called_once_with('test-bucket')
+        
+        # Verify file upload with manifests path
+        mock_minio_client.put_object.assert_called_once()
+        call_args = mock_minio_client.put_object.call_args
+        
+        assert call_args[1]['bucket_name'] == 'test-bucket'
+        assert call_args[1]['object_name'] == 'manifests/mars_rover_manifests_2025-09-13T15:30:00.json'
+        assert call_args[1]['content_type'] == 'application/json'
+        assert isinstance(call_args[1]['data'], BytesIO)
+        
+        # Verify logging
+        assert mock_logger.info.call_count == 2
+        log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
+        assert any("Attempting upload to MinIO" in msg for msg in log_calls)
+        assert any("Uploaded to MinIO" in msg for msg in log_calls)
+
 def test_upload_json_to_minio_unknown_filename(mock_minio_client, mock_logger):
     """Test uploading JSON with unknown filename pattern"""
     unknown_json = {
@@ -231,10 +281,10 @@ def test_extract_json_as_jsonl_from_minio_success(mock_minio_client, sample_fina
         mock_remove.assert_called_once_with('/tmp/test_file.json')
         
         # Verify logging
-        assert mock_logger.info.call_count == 3
+        assert mock_logger.info.call_count == 2
         log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
         assert any("Attempting extract from MinIO" in msg for msg in log_calls)
-        assert any("Extracted from MinIO" in msg for msg in log_calls)
+        assert any("Converted to JSONL" in msg for msg in log_calls)
 
 def test_extract_json_as_jsonl_from_minio_filepath_parsing(mock_minio_client, mock_logger):
     """Test filepath parsing with different input formats"""

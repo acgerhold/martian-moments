@@ -55,8 +55,8 @@ def test_extract_coordinates_from_nasa_success_perseverance(mock_get, mock_logge
     
     assert result["rover"] == "Perseverance"
     assert result["coordinate_response"] == sample_coordinate_response
-    mock_logger.info.assert_any_call("Processing coordinates request for rover: Perseverance")
-    mock_logger.info.assert_any_call("Fetched 1 sol coordinate records for rover: Perseverance")
+    mock_logger.info.assert_any_call("Processing Coordinates Request - Rover: Perseverance")
+    mock_logger.info.assert_any_call("Successful Coordinates Request - Rover: Perseverance, Coordinate Count: 1")
 
 @patch('src.ingestion.coordinates.requests.get')
 def test_extract_coordinates_from_nasa_request_timeout(mock_get, mock_logger):
@@ -66,7 +66,7 @@ def test_extract_coordinates_from_nasa_request_timeout(mock_get, mock_logger):
     result = extract_coordinates_from_nasa("Perseverance", mock_logger)
     
     assert result == {"features": []}
-    mock_logger.error.assert_called_once_with("Error processing coordinate request for rover: Perseverance")
+    mock_logger.error.assert_called_once_with("Unsuccessful Coordinates Request - Rover: Perseverance, Error: Timeout error")
 
 @patch('src.ingestion.coordinates.requests.get')
 def test_extract_coordinates_from_nasa_empty_response(mock_get, mock_logger):
@@ -80,7 +80,7 @@ def test_extract_coordinates_from_nasa_empty_response(mock_get, mock_logger):
     
     assert result["rover"] == "Perseverance"
     assert result["coordinate_response"]["features"] == []
-    mock_logger.info.assert_any_call("Fetched 0 sol coordinate records for rover: Perseverance")
+    mock_logger.info.assert_any_call("Successful Coordinates Request - Rover: Perseverance, Coordinate Count: 0")
 
 # ====== CREATE_FINAL_COORDINATES_JSON TESTS ======
 
@@ -99,8 +99,8 @@ def test_create_final_coordinates_json_success(mock_logger, sample_enhanced_coor
         assert len(result["coordinates"]) == 1
         assert result["coordinates"][0]["rover_name"] == "Perseverance"
         
-        mock_logger.info.assert_any_call("Creating coordinates final .json")
-        mock_logger.info.assert_any_call("Created file: - Name: mars_rover_coordinates_2025-09-13T15:30:00.json, Coordinate Count: 1")
+        mock_logger.info.assert_any_call("Creating Coordinates Batch File")
+        mock_logger.info.assert_any_call("Created Coordinates Batch - File: mars_rover_coordinates_2025-09-13T15:30:00.json, Coordinate Count: 1")
 
 def test_create_final_coordinates_json_multiple_rovers(mock_logger):
     """Test creation of final coordinates JSON with multiple rovers"""
@@ -193,8 +193,8 @@ def test_generate_tasks_for_coordinates_batch_single_rover(mock_logger):
     
     assert len(result) == 1
     assert result[0] == {"rover": "Perseverance"}
-    mock_logger.info.assert_any_call("Generating tasks for coordinate DAG run")
-    mock_logger.info.assert_any_call("1 task(s) scheduled for this DAG run")
+    mock_logger.info.assert_any_call("Generating Tasks for Coordinates DAG")
+    mock_logger.info.assert_any_call("1 Tasks Generated")
 
 def test_generate_tasks_for_coordinates_batch_multiple_rovers(mock_logger):
     """Test task generation for multiple rovers"""
@@ -206,7 +206,7 @@ def test_generate_tasks_for_coordinates_batch_multiple_rovers(mock_logger):
     assert result[0] == {"rover": "Perseverance"}
     assert result[1] == {"rover": "Curiosity"}
     assert result[2] == {"rover": "Opportunity"}
-    mock_logger.info.assert_any_call("3 task(s) scheduled for this DAG run")
+    mock_logger.info.assert_any_call("3 Tasks Generated")
 
 def test_generate_tasks_for_coordinates_batch_empty_rovers(mock_logger):
     """Test task generation with empty rover list"""
@@ -215,4 +215,4 @@ def test_generate_tasks_for_coordinates_batch_empty_rovers(mock_logger):
     result = generate_tasks_for_coordinates_batch(rovers, mock_logger)
     
     assert len(result) == 0
-    mock_logger.info.assert_any_call("0 task(s) scheduled for this DAG run")
+    mock_logger.info.assert_any_call("0 Tasks Generated")

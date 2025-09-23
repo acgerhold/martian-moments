@@ -1,7 +1,7 @@
 from unittest.mock import patch, MagicMock
 import pytest
 import os
-from src.utils.snowflake import get_snowflake_connection, copy_file_to_snowflake, fetch_results_from_silver_schema
+from src.utils.snowflake import get_snowflake_connection, copy_file_to_snowflake, fetch_next_ingestion_batch
 
 @pytest.fixture
 def mock_logger():
@@ -73,9 +73,20 @@ def test_copy_file_to_snowflake_photos_success(mock_logger):
     }), \
     patch('src.utils.snowflake.get_snowflake_connection', return_value=mock_connection), \
     patch('os.path.exists', return_value=True), \
-    patch('os.remove') as mock_remove:
+    patch('os.remove') as mock_remove, \
+    patch('src.utils.snowflake.datetime') as mock_datetime:
         
-        copy_file_to_snowflake(jsonl_file_path, mock_logger)
+        mock_datetime.now.return_value.strftime.return_value = "2025-09-22T15:30:00"
+        
+        result = copy_file_to_snowflake(jsonl_file_path, mock_logger)
+        
+        # Verify return value
+        expected_result = {
+            "tmp_jsonl_staging_path": jsonl_file_path,
+            "status": "success", 
+            "timestamp": "2025-09-22T15:30:00"
+        }
+        assert result == expected_result
         
         # Verify connection and cursor setup
         mock_connection.cursor.assert_called_once()
@@ -124,9 +135,20 @@ def test_copy_file_to_snowflake_coordinates_success(mock_logger):
     }), \
     patch('src.utils.snowflake.get_snowflake_connection', return_value=mock_connection), \
     patch('os.path.exists', return_value=True), \
-    patch('os.remove') as mock_remove:
+    patch('os.remove') as mock_remove, \
+    patch('src.utils.snowflake.datetime') as mock_datetime:
         
-        copy_file_to_snowflake(jsonl_file_path, mock_logger)
+        mock_datetime.now.return_value.strftime.return_value = "2025-09-22T15:30:00"
+        
+        result = copy_file_to_snowflake(jsonl_file_path, mock_logger)
+        
+        # Verify return value
+        expected_result = {
+            "tmp_jsonl_staging_path": jsonl_file_path,
+            "status": "success",
+            "timestamp": "2025-09-22T15:30:00"
+        }
+        assert result == expected_result
         
         # Verify coordinate-specific table routing
         expected_calls = [
@@ -144,6 +166,51 @@ def test_copy_file_to_snowflake_coordinates_success(mock_logger):
         assert "COPY INTO RAW_COORDINATE_RESPONSE" in copy_command
         assert "FROM @%RAW_COORDINATE_RESPONSE" in copy_command
 
+def test_copy_file_to_snowflake_manifests_success(mock_logger):
+    """Test successful manifest file copy to Snowflake"""
+    mock_connection = MagicMock()
+    mock_cursor = MagicMock()
+    mock_connection.cursor.return_value = mock_cursor
+    
+    jsonl_file_path = "/tmp/mars_rover_manifests_2025-09-13T15:30:00.jsonl"
+    
+    with patch.dict(os.environ, {
+        'SNOWFLAKE_DATABASE': 'TEST_DB',
+        'SNOWFLAKE_SCHEMA_BRONZE': 'BRONZE'
+    }), \
+    patch('src.utils.snowflake.get_snowflake_connection', return_value=mock_connection), \
+    patch('os.path.exists', return_value=True), \
+    patch('os.remove') as mock_remove, \
+    patch('src.utils.snowflake.datetime') as mock_datetime:
+        
+        mock_datetime.now.return_value.strftime.return_value = "2025-09-22T15:30:00"
+        
+        result = copy_file_to_snowflake(jsonl_file_path, mock_logger)
+        
+        # Verify return value
+        expected_result = {
+            "tmp_jsonl_staging_path": jsonl_file_path,
+            "status": "success",
+            "timestamp": "2025-09-22T15:30:00"
+        }
+        assert result == expected_result
+        
+        # Verify manifest-specific table routing
+        expected_calls = [
+            "USE SCHEMA TEST_DB.BRONZE;",
+            "REMOVE @%RAW_MANIFEST_RESPONSE PATTERN='.*';",
+            f"PUT file://{jsonl_file_path} @%RAW_MANIFEST_RESPONSE OVERWRITE = TRUE"
+        ]
+        
+        for i, expected_call in enumerate(expected_calls):
+            actual_call = mock_cursor.execute.call_args_list[i][0][0]
+            assert actual_call == expected_call
+        
+        # Verify COPY INTO uses manifest table
+        copy_command = mock_cursor.execute.call_args_list[3][0][0]
+        assert "COPY INTO RAW_MANIFEST_RESPONSE" in copy_command
+        assert "FROM @%RAW_MANIFEST_RESPONSE" in copy_command
+
 def test_copy_file_to_snowflake_unknown_filename(mock_logger):
     """Test file copy with unknown filename pattern"""
     mock_connection = MagicMock()
@@ -158,9 +225,20 @@ def test_copy_file_to_snowflake_unknown_filename(mock_logger):
     }), \
     patch('src.utils.snowflake.get_snowflake_connection', return_value=mock_connection), \
     patch('os.path.exists', return_value=True), \
-    patch('os.remove'):
+    patch('os.remove'), \
+    patch('src.utils.snowflake.datetime') as mock_datetime:
         
-        copy_file_to_snowflake(jsonl_file_path, mock_logger)
+        mock_datetime.now.return_value.strftime.return_value = "2025-09-22T15:30:00"
+        
+        result = copy_file_to_snowflake(jsonl_file_path, mock_logger)
+        
+        # Verify return value
+        expected_result = {
+            "tmp_jsonl_staging_path": jsonl_file_path,
+            "status": "success",
+            "timestamp": "2025-09-22T15:30:00"
+        }
+        assert result == expected_result
         
         # Verify UNKNOWN table is used as fallback
         expected_calls = [
@@ -192,9 +270,20 @@ def test_copy_file_to_snowflake_file_not_exists(mock_logger):
     }), \
     patch('src.utils.snowflake.get_snowflake_connection', return_value=mock_connection), \
     patch('os.path.exists', return_value=False), \
-    patch('os.remove') as mock_remove:
+    patch('os.remove') as mock_remove, \
+    patch('src.utils.snowflake.datetime') as mock_datetime:
         
-        copy_file_to_snowflake(jsonl_file_path, mock_logger)
+        mock_datetime.now.return_value.strftime.return_value = "2025-09-22T15:30:00"
+        
+        result = copy_file_to_snowflake(jsonl_file_path, mock_logger)
+        
+        # Verify return value
+        expected_result = {
+            "tmp_jsonl_staging_path": jsonl_file_path,
+            "status": "success",
+            "timestamp": "2025-09-22T15:30:00"
+        }
+        assert result == expected_result
         
         # Verify SQL operations still completed
         assert mock_cursor.execute.call_count >= 4
@@ -229,11 +318,23 @@ def test_copy_file_to_snowflake_sql_error_cleanup(mock_logger):
     }), \
     patch('src.utils.snowflake.get_snowflake_connection', return_value=mock_connection), \
     patch('os.path.exists', return_value=True), \
-    patch('os.remove') as mock_remove:
+    patch('os.remove') as mock_remove, \
+    patch('src.utils.snowflake.datetime') as mock_datetime:
+        
+        mock_datetime.now.return_value.strftime.return_value = "2025-09-22T15:30:00"
         
         # The function should handle the exception internally and continue with cleanup
         try:
-            copy_file_to_snowflake(jsonl_file_path, mock_logger)
+            result = copy_file_to_snowflake(jsonl_file_path, mock_logger)
+            
+            # If function completes without raising, verify return value
+            expected_result = {
+                "tmp_jsonl_staging_path": jsonl_file_path,
+                "status": "success",
+                "timestamp": "2025-09-22T15:30:00"
+            }
+            assert result == expected_result
+            
         except Exception as e:
             # If an exception bubbles up, that's expected behavior - 
             # we still want to verify cleanup happened
@@ -272,9 +373,20 @@ def test_copy_file_to_snowflake_different_environments(mock_logger):
         }), \
         patch('src.utils.snowflake.get_snowflake_connection', return_value=mock_connection), \
         patch('os.path.exists', return_value=True), \
-        patch('os.remove'):
+        patch('os.remove'), \
+        patch('src.utils.snowflake.datetime') as mock_datetime:
             
-            copy_file_to_snowflake(jsonl_file_path, mock_logger)
+            mock_datetime.now.return_value.strftime.return_value = "2025-09-22T15:30:00"
+            
+            result = copy_file_to_snowflake(jsonl_file_path, mock_logger)
+            
+            # Verify return value
+            expected_result = {
+                "tmp_jsonl_staging_path": jsonl_file_path,
+                "status": "success",
+                "timestamp": "2025-09-22T15:30:00"
+            }
+            assert result == expected_result
             
             # Verify correct schema usage
             use_schema_call = mock_cursor.execute.call_args_list[0][0][0]
@@ -294,9 +406,20 @@ def test_copy_file_to_snowflake_command_structure(mock_logger):
     }), \
     patch('src.utils.snowflake.get_snowflake_connection', return_value=mock_connection), \
     patch('os.path.exists', return_value=True), \
-    patch('os.remove'):
+    patch('os.remove'), \
+    patch('src.utils.snowflake.datetime') as mock_datetime:
         
-        copy_file_to_snowflake(jsonl_file_path, mock_logger)
+        mock_datetime.now.return_value.strftime.return_value = "2025-09-22T15:30:00"
+        
+        result = copy_file_to_snowflake(jsonl_file_path, mock_logger)
+        
+        # Verify return value
+        expected_result = {
+            "tmp_jsonl_staging_path": jsonl_file_path,
+            "status": "success",
+            "timestamp": "2025-09-22T15:30:00"
+        }
+        assert result == expected_result
         
         # Verify exactly 4 SQL operations were executed
         assert mock_cursor.execute.call_count == 4
@@ -347,9 +470,20 @@ def test_copy_file_to_snowflake_filename_routing_edge_cases(mock_logger):
         }), \
         patch('src.utils.snowflake.get_snowflake_connection', return_value=mock_connection), \
         patch('os.path.exists', return_value=True), \
-        patch('os.remove'):
+        patch('os.remove'), \
+        patch('src.utils.snowflake.datetime') as mock_datetime:
             
-            copy_file_to_snowflake(jsonl_file_path, mock_logger)
+            mock_datetime.now.return_value.strftime.return_value = "2025-09-22T15:30:00"
+            
+            result = copy_file_to_snowflake(jsonl_file_path, mock_logger)
+            
+            # Verify return value
+            expected_result = {
+                "tmp_jsonl_staging_path": jsonl_file_path,
+                "status": "success",
+                "timestamp": "2025-09-22T15:30:00"
+            }
+            assert result == expected_result
             
             # Verify correct table routing
             remove_call = mock_cursor.execute.call_args_list[1][0][0]
@@ -384,9 +518,20 @@ def test_copy_file_to_snowflake_path_handling(mock_logger):
         }), \
         patch('src.utils.snowflake.get_snowflake_connection', return_value=mock_connection), \
         patch('os.path.exists', return_value=True), \
-        patch('os.remove'):
+        patch('os.remove'), \
+        patch('src.utils.snowflake.datetime') as mock_datetime:
             
-            copy_file_to_snowflake(jsonl_file_path, mock_logger)
+            mock_datetime.now.return_value.strftime.return_value = "2025-09-22T15:30:00"
+            
+            result = copy_file_to_snowflake(jsonl_file_path, mock_logger)
+            
+            # Verify return value
+            expected_result = {
+                "tmp_jsonl_staging_path": jsonl_file_path,
+                "status": "success",
+                "timestamp": "2025-09-22T15:30:00"
+            }
+            assert result == expected_result
             
             # Verify PUT command uses full path
             put_call = mock_cursor.execute.call_args_list[2][0][0]
@@ -395,453 +540,320 @@ def test_copy_file_to_snowflake_path_handling(mock_logger):
             # Verify table routing works based on filename only (not path)
             assert "RAW_PHOTO_RESPONSE" in put_call
 
-# ====== FETCH_RESULTS_FROM_SILVER_SCHEMA TESTS ======
 
-def test_fetch_results_from_silver_schema_success(mock_logger):
-    """Test successful data fetch from silver schema"""
+# ====== FETCH_NEXT_INGESTION_BATCH TESTS ======
+
+def test_fetch_next_ingestion_batch_success_with_batches(mock_logger):
+    """Test successful fetch with ingestion batches available"""
     mock_connection = MagicMock()
     mock_cursor = MagicMock()
     mock_connection.cursor.return_value = mock_cursor
     
-    # Mock query results
-    mock_results = [
-        (1, 'Curiosity', '2025-09-15', 'FHAZ'),
-        (2, 'Perseverance', '2025-09-15', 'NAVCAM'),
-        (3, 'Opportunity', '2025-09-14', 'PANCAM')
+    # Mock fetchall result
+    mock_cursor.fetchall.return_value = [
+        ('Curiosity', 2800, 2900, 2799, 4666, False, 1867, 19, '2025-09-22 11:09:22.480'),
+        ('Opportunity', 2800, 2900, 2799, 5111, False, 2312, 24, '2025-09-22 11:09:22.480'),
+        ('Perseverance', 1700, 1631, 1631, 1631, True, 0, 0, '2025-09-22 11:09:22.480'),
+        ('Spirit', 2300, 2208, 2207, 2208, False, 1, 1, '2025-09-22 11:09:22.480')
     ]
     
-    # Mock column descriptions
+    # Mock cursor description for DataFrame columns
     mock_cursor.description = [
-        ('ID', 'NUMBER'),
-        ('ROVER_NAME', 'VARCHAR'),
-        ('DATE', 'DATE'),
-        ('CAMERA', 'VARCHAR')
+        ('ROVER_NAME',), ('START_SOL',), ('END_SOL',), ('PHOTOS_MAX_SOL',), 
+        ('MANIFEST_MAX_SOL',), ('UP_TO_DATE',), ('TOTAL_SOLS_NEEDED',), 
+        ('ESTIMATED_BATCHES',), ('TASK_CREATED_AT',)
     ]
     
-    # Mock the chained call: execute().fetchall()
-    mock_execute_result = MagicMock()
-    mock_execute_result.fetchall.return_value = mock_results
-    mock_cursor.execute.return_value = mock_execute_result
-    
-    table_name = "PHOTOS_SILVER"
+    # Mock the execute method to return the mock cursor for method chaining
+    mock_cursor.execute.return_value = mock_cursor
     
     with patch.dict(os.environ, {
         'SNOWFLAKE_DATABASE': 'TEST_DB',
         'SNOWFLAKE_SCHEMA_SILVER': 'SILVER'
     }), \
     patch('src.utils.snowflake.get_snowflake_connection', return_value=mock_connection), \
-    patch('pandas.DataFrame') as mock_dataframe:
+    patch('src.utils.snowflake.datetime') as mock_datetime:
         
-        mock_df = MagicMock()
-        mock_dataframe.return_value = mock_df
+        mock_datetime.now.return_value.strftime.return_value = "2025-09-22T21:47:59"
         
-        result = fetch_results_from_silver_schema(table_name, mock_logger)
+        result = fetch_next_ingestion_batch(True, mock_logger)
         
         # Verify connection and cursor setup
         mock_connection.cursor.assert_called_once()
         
-        # Verify SQL commands were executed
-        assert mock_cursor.execute.call_count == 2
+        # Verify SQL commands
+        expected_calls = [
+            f"USE SCHEMA TEST_DB.SILVER;",
+            f"SELECT * FROM INGESTION_PLANNING;"
+        ]
         
-        # Verify USE SCHEMA command
-        use_schema_call = mock_cursor.execute.call_args_list[0][0][0]
-        assert use_schema_call == "USE SCHEMA TEST_DB.SILVER;"
+        for i, expected_call in enumerate(expected_calls):
+            actual_call = mock_cursor.execute.call_args_list[i][0][0]
+            assert actual_call == expected_call
         
-        # Verify SELECT query
-        select_call = mock_cursor.execute.call_args_list[1][0][0]
-        assert select_call == f"SELECT * FROM {table_name}"
+        # Verify result structure
+        assert result["status"] == "success"
+        assert result["timestamp"] == "2025-09-22T21:47:59"
+        assert "ingestion_schedule" in result
         
-        # Verify fetchall was called on the execute result
-        mock_execute_result.fetchall.assert_called_once()
-        
-        # Verify DataFrame was created with correct data
-        expected_columns = ['ID', 'ROVER_NAME', 'DATE', 'CAMERA']
-        mock_dataframe.assert_called_once_with(mock_results, columns=expected_columns)
+        # Verify only non-up-to-date batches are included
+        expected_batches = [
+            {"rover_name": "Curiosity", "sol_start": 2800, "sol_end": 2900},
+            {"rover_name": "Opportunity", "sol_start": 2800, "sol_end": 2900},
+            {"rover_name": "Spirit", "sol_start": 2300, "sol_end": 2208}
+        ]
+        assert result["ingestion_schedule"] == expected_batches
         
         # Verify cleanup
         mock_cursor.close.assert_called_once()
         mock_connection.close.assert_called_once()
         
         # Verify logging
-        mock_logger.info.assert_any_call(f"Attempting to fetch results - Table: {table_name}")
-        mock_logger.info.assert_any_call(f"Fetched results successfully - Table: {table_name}")
-        
-        # Verify return value
-        assert result == mock_df
+        mock_logger.info.assert_any_call("Attempting to fetch next ingestion batch")
+        mock_logger.info.assert_any_call(f"Fetched next ingestion batch - Batch: {expected_batches}")
 
-def test_fetch_results_from_silver_schema_different_table(mock_logger):
-    """Test data fetch with different table name"""
+def test_fetch_next_ingestion_batch_all_up_to_date(mock_logger):
+    """Test fetch when all rovers are up to date"""
     mock_connection = MagicMock()
     mock_cursor = MagicMock()
     mock_connection.cursor.return_value = mock_cursor
     
-    # Mock different table results
-    mock_results = [
-        (100, 25.5, -30.2, 'Curiosity'),
-        (101, 26.1, -29.8, 'Perseverance')
+    # All rovers are up to date
+    mock_cursor.fetchall.return_value = [
+        ('Curiosity', 2800, 2800, 2800, 2800, True, 0, 0, '2025-09-22 11:09:22.480'),
+        ('Perseverance', 1700, 1700, 1700, 1700, True, 0, 0, '2025-09-22 11:09:22.480')
     ]
     
     mock_cursor.description = [
-        ('SOL', 'NUMBER'),
-        ('LATITUDE', 'FLOAT'),
-        ('LONGITUDE', 'FLOAT'),
-        ('ROVER', 'VARCHAR')
+        ('ROVER_NAME',), ('START_SOL',), ('END_SOL',), ('PHOTOS_MAX_SOL',), 
+        ('MANIFEST_MAX_SOL',), ('UP_TO_DATE',), ('TOTAL_SOLS_NEEDED',), 
+        ('ESTIMATED_BATCHES',), ('TASK_CREATED_AT',)
     ]
     
-    # Mock the chained call: execute().fetchall()
-    mock_execute_result = MagicMock()
-    mock_execute_result.fetchall.return_value = mock_results
-    mock_cursor.execute.return_value = mock_execute_result
-    
-    table_name = "COORDINATES_SILVER"
-    
-    with patch.dict(os.environ, {
-        'SNOWFLAKE_DATABASE': 'MARS_DB',
-        'SNOWFLAKE_SCHEMA_SILVER': 'PROCESSED'
-    }), \
-    patch('src.utils.snowflake.get_snowflake_connection', return_value=mock_connection), \
-    patch('pandas.DataFrame') as mock_dataframe:
-        
-        mock_df = MagicMock()
-        mock_dataframe.return_value = mock_df
-        
-        result = fetch_results_from_silver_schema(table_name, mock_logger)
-        
-        # Verify correct schema usage
-        use_schema_call = mock_cursor.execute.call_args_list[0][0][0]
-        assert use_schema_call == "USE SCHEMA MARS_DB.PROCESSED;"
-        
-        # Verify correct table query
-        select_call = mock_cursor.execute.call_args_list[1][0][0]
-        assert select_call == f"SELECT * FROM {table_name}"
-        
-        # Verify DataFrame created with coordinate data
-        expected_columns = ['SOL', 'LATITUDE', 'LONGITUDE', 'ROVER']
-        mock_dataframe.assert_called_once_with(mock_results, columns=expected_columns)
-
-def test_fetch_results_from_silver_schema_empty_results(mock_logger):
-    """Test data fetch when table has no results"""
-    mock_connection = MagicMock()
-    mock_cursor = MagicMock()
-    mock_connection.cursor.return_value = mock_cursor
-    
-    # Mock empty results
-    mock_results = []
-    
-    mock_cursor.description = [
-        ('ID', 'NUMBER'),
-        ('NAME', 'VARCHAR')
-    ]
-    
-    # Mock the chained call: execute().fetchall()
-    mock_execute_result = MagicMock()
-    mock_execute_result.fetchall.return_value = mock_results
-    mock_cursor.execute.return_value = mock_execute_result
-    
-    table_name = "EMPTY_TABLE"
+    mock_cursor.execute.return_value = mock_cursor
     
     with patch.dict(os.environ, {
         'SNOWFLAKE_DATABASE': 'TEST_DB',
         'SNOWFLAKE_SCHEMA_SILVER': 'SILVER'
     }), \
     patch('src.utils.snowflake.get_snowflake_connection', return_value=mock_connection), \
-    patch('pandas.DataFrame') as mock_dataframe:
+    patch('src.utils.snowflake.datetime') as mock_datetime:
         
-        mock_df = MagicMock()
-        mock_dataframe.return_value = mock_df
+        mock_datetime.now.return_value.strftime.return_value = "2025-09-22T21:47:59"
         
-        result = fetch_results_from_silver_schema(table_name, mock_logger)
+        result = fetch_next_ingestion_batch(True, mock_logger)
         
-        # Verify DataFrame was still created with empty data
-        expected_columns = ['ID', 'NAME']
-        mock_dataframe.assert_called_once_with([], columns=expected_columns)
+        # Verify empty ingestion schedule
+        assert result["ingestion_schedule"] == []
+        assert result["status"] == "success"
         
-        # Verify logging still occurred
-        mock_logger.info.assert_any_call(f"Attempting to fetch results - Table: {table_name}")
-        mock_logger.info.assert_any_call(f"Fetched results successfully - Table: {table_name}")
-        
-        assert result == mock_df
+        # Verify logging shows empty batch
+        mock_logger.info.assert_any_call("Fetched next ingestion batch - Batch: []")
 
-def test_fetch_results_from_silver_schema_single_row(mock_logger):
-    """Test data fetch with single row result"""
-    mock_connection = MagicMock()
-    mock_cursor = MagicMock()
-    mock_connection.cursor.return_value = mock_cursor
+def test_fetch_next_ingestion_batch_false_trigger(mock_logger):
+    """Test fetch when run_dbt_models_success is False"""
+    # When run_dbt_models_success is False, function should not execute
     
-    # Mock single row result
-    mock_results = [
-        ('MANIFEST_001', 'Curiosity', 3000, '2025-09-15T10:30:00')
-    ]
-    
-    mock_cursor.description = [
-        ('MANIFEST_ID', 'VARCHAR'),
-        ('ROVER_NAME', 'VARCHAR'),
-        ('MAX_SOL', 'NUMBER'),
-        ('LAST_UPDATED', 'TIMESTAMP')
-    ]
-    
-    # Mock the chained call: execute().fetchall()
-    mock_execute_result = MagicMock()
-    mock_execute_result.fetchall.return_value = mock_results
-    mock_cursor.execute.return_value = mock_execute_result
-    
-    table_name = "MANIFESTS_SILVER"
-    
-    with patch.dict(os.environ, {
-        'SNOWFLAKE_DATABASE': 'TEST_DB',
-        'SNOWFLAKE_SCHEMA_SILVER': 'SILVER'
-    }), \
-    patch('src.utils.snowflake.get_snowflake_connection', return_value=mock_connection), \
-    patch('pandas.DataFrame') as mock_dataframe:
+    with patch('src.utils.snowflake.get_snowflake_connection') as mock_get_conn:
+        result = fetch_next_ingestion_batch(False, mock_logger)
         
-        mock_df = MagicMock()
-        mock_dataframe.return_value = mock_df
-        
-        result = fetch_results_from_silver_schema(table_name, mock_logger)
-        
-        # Verify DataFrame was created with single row
-        expected_columns = ['MANIFEST_ID', 'ROVER_NAME', 'MAX_SOL', 'LAST_UPDATED']
-        mock_dataframe.assert_called_once_with(mock_results, columns=expected_columns)
-        
-        assert result == mock_df
+        # Should return None and not attempt any database operations
+        assert result is None
+        mock_get_conn.assert_not_called()
+        mock_logger.info.assert_not_called()
 
-def test_fetch_results_from_silver_schema_query_error_cleanup(mock_logger):
-    """Test that cleanup happens even if query fails"""
+def test_fetch_next_ingestion_batch_sql_error(mock_logger):
+    """Test fetch when SQL query fails"""
     mock_connection = MagicMock()
     mock_cursor = MagicMock()
     mock_connection.cursor.return_value = mock_cursor
     
     # Make the SELECT query fail
-    def execute_side_effect(sql):
-        if "SELECT" in sql:
-            raise Exception("Query failed")
-        # Let USE SCHEMA pass through
-        return None
-    
-    mock_cursor.execute.side_effect = execute_side_effect
-    
-    table_name = "ERROR_TABLE"
-    
-    with patch.dict(os.environ, {
-        'SNOWFLAKE_DATABASE': 'TEST_DB',
-        'SNOWFLAKE_SCHEMA_SILVER': 'SILVER'
-    }), \
-    patch('src.utils.snowflake.get_snowflake_connection', return_value=mock_connection):
-        
-        # The function should raise the exception but still cleanup
-        with pytest.raises(Exception, match="Query failed"):
-            fetch_results_from_silver_schema(table_name, mock_logger)
-        
-        # Verify cleanup still happened despite error
-        mock_cursor.close.assert_called_once()
-        mock_connection.close.assert_called_once()
-
-def test_fetch_results_from_silver_schema_connection_error_cleanup(mock_logger):
-    """Test that cleanup happens even if connection fails"""
-    mock_connection = MagicMock()
-    mock_cursor = MagicMock()
-    mock_connection.cursor.return_value = mock_cursor
-    
-    # Mock the chained call but make fetchall fail
-    mock_execute_result = MagicMock()
-    mock_execute_result.fetchall.side_effect = Exception("Connection error")
-    mock_cursor.execute.return_value = mock_execute_result
-    
-    table_name = "CONNECTION_ERROR_TABLE"
-    
-    with patch.dict(os.environ, {
-        'SNOWFLAKE_DATABASE': 'TEST_DB',
-        'SNOWFLAKE_SCHEMA_SILVER': 'SILVER'
-    }), \
-    patch('src.utils.snowflake.get_snowflake_connection', return_value=mock_connection):
-        
-        # The function should raise the exception but still cleanup
-        with pytest.raises(Exception, match="Connection error"):
-            fetch_results_from_silver_schema(table_name, mock_logger)
-        
-        # Verify cleanup still happened despite error
-        mock_cursor.close.assert_called_once()
-        mock_connection.close.assert_called_once()
-
-def test_fetch_results_from_silver_schema_complex_data_types(mock_logger):
-    """Test data fetch with complex data types"""
-    mock_connection = MagicMock()
-    mock_cursor = MagicMock()
-    mock_connection.cursor.return_value = mock_cursor
-    
-    # Mock results with various data types
-    mock_results = [
-        (1, 'Curiosity', 3.14159, True, '2025-09-15 10:30:00', '{"camera": "FHAZ", "sol": 100}'),
-        (2, 'Perseverance', 2.71828, False, '2025-09-14 15:45:30', '{"camera": "NAVCAM", "sol": 50}')
-    ]
-    
-    mock_cursor.description = [
-        ('ID', 'NUMBER'),
-        ('ROVER_NAME', 'VARCHAR'),
-        ('COORDINATE', 'FLOAT'),
-        ('IS_ACTIVE', 'BOOLEAN'),
-        ('TIMESTAMP', 'TIMESTAMP_NTZ'),
-        ('METADATA', 'VARIANT')
-    ]
-    
-    # Mock the chained call: execute().fetchall()
-    mock_execute_result = MagicMock()
-    mock_execute_result.fetchall.return_value = mock_results
-    mock_cursor.execute.return_value = mock_execute_result
-    
-    table_name = "COMPLEX_DATA_TABLE"
+    mock_cursor.execute.side_effect = Exception("SQL query failed")
     
     with patch.dict(os.environ, {
         'SNOWFLAKE_DATABASE': 'TEST_DB',
         'SNOWFLAKE_SCHEMA_SILVER': 'SILVER'
     }), \
     patch('src.utils.snowflake.get_snowflake_connection', return_value=mock_connection), \
-    patch('pandas.DataFrame') as mock_dataframe:
+    patch('src.utils.snowflake.datetime') as mock_datetime:
         
-        mock_df = MagicMock()
-        mock_dataframe.return_value = mock_df
+        mock_datetime.now.return_value.strftime.return_value = "2025-09-22T21:47:59"
         
-        result = fetch_results_from_silver_schema(table_name, mock_logger)
+        result = fetch_next_ingestion_batch(True, mock_logger)
         
-        # Verify DataFrame was created with complex data types
-        expected_columns = ['ID', 'ROVER_NAME', 'COORDINATE', 'IS_ACTIVE', 'TIMESTAMP', 'METADATA']
-        mock_dataframe.assert_called_once_with(mock_results, columns=expected_columns)
+        # Verify error logging
+        mock_logger.error.assert_called_once()
+        error_msg = mock_logger.error.call_args[0][0]
+        assert "Error fetching results from INGESTION_PLANNING" in error_msg
+        assert "SQL query failed" in error_msg
         
-        assert result == mock_df
+        # Verify cleanup still happens
+        mock_cursor.close.assert_called_once()
+        mock_connection.close.assert_called_once()
+        
+        # Verify final result still returned (with empty schedule)
+        assert result["status"] == "success"
+        assert result["ingestion_schedule"] == []
 
-def test_fetch_results_from_silver_schema_different_environments(mock_logger):
-    """Test fetch with different database and schema configurations"""
+def test_fetch_next_ingestion_batch_empty_results(mock_logger):
+    """Test fetch when query returns no results"""
     mock_connection = MagicMock()
     mock_cursor = MagicMock()
     mock_connection.cursor.return_value = mock_cursor
     
-    mock_results = [('test', 'data')]
-    mock_cursor.description = [('COL1', 'VARCHAR'), ('COL2', 'VARCHAR')]
-    
-    table_name = "TEST_TABLE"
-    
-    test_cases = [
-        ('PROD_DB', 'SILVER_LAYER'),
-        ('DEV_DATABASE', 'PROCESSED'),
-        ('ANALYTICS_DB', 'CURATED_SCHEMA')
+    # Empty query results
+    mock_cursor.fetchall.return_value = []
+    mock_cursor.description = [
+        ('ROVER_NAME',), ('START_SOL',), ('END_SOL',), ('PHOTOS_MAX_SOL',), 
+        ('MANIFEST_MAX_SOL',), ('UP_TO_DATE',), ('TOTAL_SOLS_NEEDED',), 
+        ('ESTIMATED_BATCHES',), ('TASK_CREATED_AT',)
     ]
     
-    for database, schema in test_cases:
+    mock_cursor.execute.return_value = mock_cursor
+    
+    with patch.dict(os.environ, {
+        'SNOWFLAKE_DATABASE': 'TEST_DB',
+        'SNOWFLAKE_SCHEMA_SILVER': 'SILVER'
+    }), \
+    patch('src.utils.snowflake.get_snowflake_connection', return_value=mock_connection), \
+    patch('src.utils.snowflake.datetime') as mock_datetime:
+        
+        mock_datetime.now.return_value.strftime.return_value = "2025-09-22T21:47:59"
+        
+        result = fetch_next_ingestion_batch(True, mock_logger)
+        
+        # Verify empty ingestion schedule
+        assert result["ingestion_schedule"] == []
+        assert result["status"] == "success"
+
+def test_fetch_next_ingestion_batch_mixed_data_types(mock_logger):
+    """Test fetch with mixed data types and edge cases"""
+    mock_connection = MagicMock()
+    mock_cursor = MagicMock()
+    mock_connection.cursor.return_value = mock_cursor
+    
+    # Mixed data with various edge cases
+    mock_cursor.fetchall.return_value = [
+        ('Curiosity', 0, 100, 0, 100, False, 100, 1, '2025-09-22 11:09:22.480'),  # Starting from sol 0
+        ('TestRover', 5000, 5000, 5000, 5000, True, 0, 0, '2025-09-22 11:09:22.480'),  # High sol numbers, up to date
+        ('EdgeCase', 1, 2, 1, 2, False, 1, 1, '2025-09-22 11:09:22.480'),  # Single sol difference
+    ]
+    
+    mock_cursor.description = [
+        ('ROVER_NAME',), ('START_SOL',), ('END_SOL',), ('PHOTOS_MAX_SOL',), 
+        ('MANIFEST_MAX_SOL',), ('UP_TO_DATE',), ('TOTAL_SOLS_NEEDED',), 
+        ('ESTIMATED_BATCHES',), ('TASK_CREATED_AT',)
+    ]
+    
+    mock_cursor.execute.return_value = mock_cursor
+    
+    with patch.dict(os.environ, {
+        'SNOWFLAKE_DATABASE': 'TEST_DB',
+        'SNOWFLAKE_SCHEMA_SILVER': 'SILVER'
+    }), \
+    patch('src.utils.snowflake.get_snowflake_connection', return_value=mock_connection), \
+    patch('src.utils.snowflake.datetime') as mock_datetime:
+        
+        mock_datetime.now.return_value.strftime.return_value = "2025-09-22T21:47:59"
+        
+        result = fetch_next_ingestion_batch(True, mock_logger)
+        
+        # Verify only non-up-to-date batches
+        expected_batches = [
+            {"rover_name": "Curiosity", "sol_start": 0, "sol_end": 100},
+            {"rover_name": "EdgeCase", "sol_start": 1, "sol_end": 2}
+        ]
+        assert result["ingestion_schedule"] == expected_batches
+
+def test_fetch_next_ingestion_batch_environment_variations(mock_logger):
+    """Test fetch with different environment configurations"""
+    mock_connection = MagicMock()
+    mock_cursor = MagicMock()
+    mock_connection.cursor.return_value = mock_cursor
+    
+    mock_cursor.fetchall.return_value = [
+        ('Curiosity', 100, 200, 100, 200, False, 100, 1, '2025-09-22 11:09:22.480')
+    ]
+    
+    mock_cursor.description = [
+        ('ROVER_NAME',), ('START_SOL',), ('END_SOL',), ('PHOTOS_MAX_SOL',), 
+        ('MANIFEST_MAX_SOL',), ('UP_TO_DATE',), ('TOTAL_SOLS_NEEDED',), 
+        ('ESTIMATED_BATCHES',), ('TASK_CREATED_AT',)
+    ]
+    
+    mock_cursor.execute.return_value = mock_cursor
+    
+    test_environments = [
+        ('PROD_DB', 'ANALYTICS'),
+        ('DEV_DATABASE', 'STAGING_SILVER'),
+        ('TEST_DB', 'TRANSFORMED_LAYER')
+    ]
+    
+    for database, schema in test_environments:
         mock_cursor.reset_mock()
         mock_connection.reset_mock()
         mock_connection.cursor.return_value = mock_cursor
-        mock_cursor.description = [('COL1', 'VARCHAR'), ('COL2', 'VARCHAR')]
-        
-        # Mock the chained call: execute().fetchall()
-        mock_execute_result = MagicMock()
-        mock_execute_result.fetchall.return_value = mock_results
-        mock_cursor.execute.return_value = mock_execute_result
+        mock_cursor.execute.return_value = mock_cursor
         
         with patch.dict(os.environ, {
             'SNOWFLAKE_DATABASE': database,
             'SNOWFLAKE_SCHEMA_SILVER': schema
         }), \
         patch('src.utils.snowflake.get_snowflake_connection', return_value=mock_connection), \
-        patch('pandas.DataFrame') as mock_dataframe:
+        patch('src.utils.snowflake.datetime') as mock_datetime:
             
-            mock_df = MagicMock()
-            mock_dataframe.return_value = mock_df
+            mock_datetime.now.return_value.strftime.return_value = "2025-09-22T21:47:59"
             
-            result = fetch_results_from_silver_schema(table_name, mock_logger)
+            result = fetch_next_ingestion_batch(True, mock_logger)
             
             # Verify correct schema usage
             use_schema_call = mock_cursor.execute.call_args_list[0][0][0]
             assert use_schema_call == f"USE SCHEMA {database}.{schema};"
+            
+            # Verify result is still properly formatted
+            assert result["status"] == "success"
+            assert len(result["ingestion_schedule"]) == 1
 
-def test_fetch_results_from_silver_schema_table_name_variations(mock_logger):
-    """Test fetch with different table name formats"""
+def test_fetch_next_ingestion_batch_dataframe_processing(mock_logger):
+    """Test DataFrame processing logic with pandas operations"""
     mock_connection = MagicMock()
     mock_cursor = MagicMock()
     mock_connection.cursor.return_value = mock_cursor
     
-    mock_results = [('test',)]
-    mock_cursor.description = [('COL', 'VARCHAR')]
-    
-    test_table_names = [
-        "SIMPLE_TABLE",
-        "schema.table_name",  # Qualified table name
-        "MARS_ROVER_PHOTOS_PROCESSED",  # Long descriptive name
-        "T1",  # Short name
-        "photos_2025_q3_final",  # With underscores and numbers
+    # Test data with specific focus on UP_TO_DATE filtering
+    mock_cursor.fetchall.return_value = [
+        ('RoverA', 100, 200, 100, 200, False, 100, 1, '2025-09-22 11:09:22.480'),
+        ('RoverB', 300, 400, 300, 400, True, 0, 0, '2025-09-22 11:09:22.480'),
+        ('RoverC', 500, 600, 500, 600, False, 100, 1, '2025-09-22 11:09:22.480'),
+        ('RoverD', 700, 800, 700, 800, True, 0, 0, '2025-09-22 11:09:22.480'),
+        ('RoverE', 900, 1000, 900, 1000, False, 100, 1, '2025-09-22 11:09:22.480')
     ]
-    
-    for table_name in test_table_names:
-        mock_cursor.reset_mock()
-        mock_connection.reset_mock()
-        mock_connection.cursor.return_value = mock_cursor
-        mock_cursor.description = [('COL', 'VARCHAR')]
-        
-        # Mock the chained call: execute().fetchall()
-        mock_execute_result = MagicMock()
-        mock_execute_result.fetchall.return_value = mock_results
-        mock_cursor.execute.return_value = mock_execute_result
-        
-        with patch.dict(os.environ, {
-            'SNOWFLAKE_DATABASE': 'TEST_DB',
-            'SNOWFLAKE_SCHEMA_SILVER': 'SILVER'
-        }), \
-        patch('src.utils.snowflake.get_snowflake_connection', return_value=mock_connection), \
-        patch('pandas.DataFrame') as mock_dataframe:
-            
-            mock_df = MagicMock()
-            mock_dataframe.return_value = mock_df
-            
-            result = fetch_results_from_silver_schema(table_name, mock_logger)
-            
-            # Verify SELECT query uses exact table name
-            select_call = mock_cursor.execute.call_args_list[1][0][0]
-            assert select_call == f"SELECT * FROM {table_name}"
-            
-            # Verify logging includes table name
-            mock_logger.info.assert_any_call(f"Attempting to fetch results - Table: {table_name}")
-            mock_logger.info.assert_any_call(f"Fetched results successfully - Table: {table_name}")
-
-def test_fetch_results_from_silver_schema_large_dataset_simulation(mock_logger):
-    """Test fetch simulation with larger dataset"""
-    mock_connection = MagicMock()
-    mock_cursor = MagicMock()
-    mock_connection.cursor.return_value = mock_cursor
-    
-    # Simulate larger dataset (1000 rows)
-    mock_results = [(i, f'rover_{i%3}', f'camera_{i%5}', f'2025-09-{15+(i%10)}') for i in range(1000)]
     
     mock_cursor.description = [
-        ('ID', 'NUMBER'),
-        ('ROVER', 'VARCHAR'),
-        ('CAMERA', 'VARCHAR'),
-        ('DATE', 'DATE')
+        ('ROVER_NAME',), ('START_SOL',), ('END_SOL',), ('PHOTOS_MAX_SOL',), 
+        ('MANIFEST_MAX_SOL',), ('UP_TO_DATE',), ('TOTAL_SOLS_NEEDED',), 
+        ('ESTIMATED_BATCHES',), ('TASK_CREATED_AT',)
     ]
     
-    # Mock the chained call: execute().fetchall()
-    mock_execute_result = MagicMock()
-    mock_execute_result.fetchall.return_value = mock_results
-    mock_cursor.execute.return_value = mock_execute_result
-    
-    table_name = "LARGE_PHOTOS_TABLE"
+    mock_cursor.execute.return_value = mock_cursor
     
     with patch.dict(os.environ, {
         'SNOWFLAKE_DATABASE': 'TEST_DB',
         'SNOWFLAKE_SCHEMA_SILVER': 'SILVER'
     }), \
     patch('src.utils.snowflake.get_snowflake_connection', return_value=mock_connection), \
-    patch('pandas.DataFrame') as mock_dataframe:
+    patch('src.utils.snowflake.datetime') as mock_datetime:
         
-        mock_df = MagicMock()
-        mock_dataframe.return_value = mock_df
+        mock_datetime.now.return_value.strftime.return_value = "2025-09-22T21:47:59"
         
-        result = fetch_results_from_silver_schema(table_name, mock_logger)
+        result = fetch_next_ingestion_batch(True, mock_logger)
         
-        # Verify DataFrame was called with large dataset
-        expected_columns = ['ID', 'ROVER', 'CAMERA', 'DATE']
-        mock_dataframe.assert_called_once_with(mock_results, columns=expected_columns)
-        
-        # Verify proper cleanup even with large dataset
-        mock_cursor.close.assert_called_once()
-        mock_connection.close.assert_called_once()
-        
-        assert result == mock_df
+        # Verify only False UP_TO_DATE entries are processed
+        expected_batches = [
+            {"rover_name": "RoverA", "sol_start": 100, "sol_end": 200},
+            {"rover_name": "RoverC", "sol_start": 500, "sol_end": 600},
+            {"rover_name": "RoverE", "sol_start": 900, "sol_end": 1000}
+        ]
+        assert result["ingestion_schedule"] == expected_batches
+        assert len(result["ingestion_schedule"]) == 3

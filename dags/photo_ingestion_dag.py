@@ -10,7 +10,7 @@ from src.utils.minio import upload_json_to_minio
 from src.utils.logger import setup_logger
 
 def apply_function(*args, **kwargs):
-    logger = setup_logger('apply_function_task', 'snowflake_load_dag.log', 'loading')
+    logger = setup_logger('apply_function_task', 'photo_ingestion_dag.log', 'ingestion')
     ingestion_schedule_msg = parse_kafka_message(INGESTION_SCHEDULING_TOPIC, args, logger)
     return ingestion_schedule_msg
 

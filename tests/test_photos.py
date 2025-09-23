@@ -53,8 +53,8 @@ def test_extract_photos_from_nasa_success(mock_get, mock_logger, sample_photos_r
     result = extract_photos_from_nasa("Curiosity", 100, mock_logger)
     
     assert result == sample_photos_response
-    mock_logger.info.assert_any_call("Processing photos request for rover: Curiosity on sol: 100")
-    mock_logger.info.assert_any_call("Fetched 1 photos for Curiosity on sol 100")
+    mock_logger.info.assert_any_call("Processing Photos Request - Rover: Curiosity, Sol: 100")
+    mock_logger.info.assert_any_call("Successful Photos Request - Rover: Curiosity, Sol: 100, Photo Count: 1")
 
 @patch('src.ingestion.photos.requests.get')
 def test_extract_photos_from_nasa_request_timeout(mock_get, mock_logger):
@@ -64,7 +64,7 @@ def test_extract_photos_from_nasa_request_timeout(mock_get, mock_logger):
     result = extract_photos_from_nasa("Curiosity", 100, mock_logger)
     
     assert result == {"photos": []}
-    mock_logger.error.assert_called_once_with("Error processing photos request for rover: Curiosity on sol: 100: Timeout error")
+    mock_logger.error.assert_called_once_with("Unsuccessful Photos Request -  Rover: Curiosity, Sol: 100, Error: Timeout error")
 
 @patch('src.ingestion.photos.requests.get')
 def test_extract_photos_from_nasa_empty_response(mock_get, mock_logger):
@@ -77,7 +77,7 @@ def test_extract_photos_from_nasa_empty_response(mock_get, mock_logger):
     result = extract_photos_from_nasa("Spirit", 200, mock_logger)
     
     assert result == {"photos": []}
-    mock_logger.info.assert_any_call("Fetched 0 photos for Spirit on sol 200")
+    mock_logger.info.assert_any_call("Successful Photos Request - Rover: Spirit, Sol: 200, Photo Count: 0")
 
 # ====== CREATE_FINAL_PHOTOS_JSON TESTS ======
 
@@ -98,8 +98,8 @@ def test_create_final_photos_json_success(mock_logger, sample_photos_response):
         assert result["ingestion_date"] == "2025-09-15T15:30:00"
         assert len(result["photos"]) == 2
         
-        mock_logger.info.assert_any_call("Creating photos final .json")
-        mock_logger.info.assert_any_call("Created file - Name: mars_rover_photos_batch_sol_100_to_101_2025-09-15T15:30:00.json, Date: 2025-09-15T15:30:00, Photo Count: 2")
+        mock_logger.info.assert_any_call("Creating Photos Batch File")
+        mock_logger.info.assert_any_call("Created Photos Batch - File: mars_rover_photos_batch_sol_100_to_101_2025-09-15T15:30:00.json, Photo Count: 2")
 
 def test_create_final_photos_json_single_sol(mock_logger, sample_photos_response):
     """Test creation of final photos JSON with single sol"""
@@ -243,8 +243,8 @@ def test_generate_tasks_for_photos_batch_new_format(mock_logger, sample_ingestio
     
     assert result["tasks"] == expected_tasks
     assert result["sol_range"] == expected_sol_range
-    mock_logger.info.assert_any_call("Generating tasks for photos DAG run")
-    mock_logger.info.assert_any_call(f"{len(expected_tasks)} tasks scheduled for this DAG run")
+    mock_logger.info.assert_any_call("Generating Tasks for Photos DAG")
+    mock_logger.info.assert_any_call(f"{len(expected_tasks)} Tasks Generated")
 
 def test_generate_tasks_for_photos_batch_single_rover(mock_logger):
     """Test task generation with single rover"""
@@ -295,7 +295,7 @@ def test_generate_tasks_for_photos_batch_empty_schedule(mock_logger):
     
     assert result["tasks"] == []
     assert result["sol_range"] == []
-    mock_logger.info.assert_any_call("0 tasks scheduled for this DAG run")
+    mock_logger.info.assert_any_call("0 Tasks Generated")
 
 def test_generate_tasks_for_photos_batch_same_start_end_sol(mock_logger):
     """Test task generation when start and end sol are the same"""

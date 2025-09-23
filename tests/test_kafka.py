@@ -3,7 +3,7 @@ import pytest
 import json
 import urllib.parse
 from datetime import datetime, timezone
-from src.utils.kafka import parse_message, extract_filepath_from_message, produce_kafka_message, generate_load_complete_message, generate_ingestion_schedule_message
+from src.utils.kafka import parse_kafka_message, unwrap_airflow_asset_payload, produce_kafka_message
 
 @pytest.fixture
 def mock_logger():
@@ -14,267 +14,262 @@ def mock_kafka_message():
     message = MagicMock()
     return message
 
-# ====== PARSE_MESSAGE TESTS ======
+@pytest.fixture
+def sample_minio_events_message():
+    message = MagicMock()
+    message.value.return_value = json.dumps({
+        "Key": "photos/mars_rover_photos_batch_sol_100.json",
+        "EventName": "s3:ObjectCreated:Put"
+    })
+    return message
 
-def test_parse_message_success(mock_logger, mock_kafka_message):
-    """Test successful message parsing"""
-    test_key = "photos/mars_rover_photos_batch_sol_100_2025-09-10T12:00:00.json"
-    test_event_data = {"Key": urllib.parse.quote(test_key), "EventName": "s3:ObjectCreated:Put"}
+@pytest.fixture
+def sample_snowflake_message():
+    message = MagicMock()
+    message.value.return_value = json.dumps({
+        "tmp_jsonl_staging_path": "/tmp/mars_rover_photos_batch_sol_100.jsonl"
+    })
+    return message
+
+@pytest.fixture
+def sample_ingestion_message():
+    message = MagicMock()
+    message.value.return_value = json.dumps({
+        "status": "success",
+        "timestamp": "2025-09-22T21:47:59",
+        "ingestion_schedule": [
+            {"rover_name": "Curiosity", "sol_start": 100, "sol_end": 150}
+        ]
+    })
+    return message
+
+@pytest.fixture
+def sample_airflow_events():
+    event1 = MagicMock()
+    event1.extra = {"payload": {"filepath": "photos/test.json", "event": "upload"}}
     
-    mock_kafka_message.value.return_value = json.dumps(test_event_data)
-    args = ['some', 'other', 'args', mock_kafka_message]
+    event2 = MagicMock()
+    event2.extra = {}  # No payload
     
-    result = parse_message(args, mock_logger)
+    return [event1, event2]
+
+
+# ====== PARSE_KAFKA_MESSAGE TESTS ======
+
+def test_parse_kafka_message_minio_events(sample_minio_events_message, mock_logger):
+    """Test parsing minio-events topic message"""
+    topic_name = "minio-events"
+    args = [None, sample_minio_events_message]
     
-    assert result["data"] == test_key
-    assert result["event"] == test_event_data
+    result = parse_kafka_message(topic_name, args, mock_logger)
+    
+    assert result == "photos/mars_rover_photos_batch_sol_100.json"
     
     # Verify logging
-    mock_logger.info.assert_called_once()
-    log_msg = mock_logger.info.call_args[0][0]
-    assert "Message received - Key:" in log_msg
-    assert test_key in log_msg
+    mock_logger.info.assert_any_call(
+        f"Processing Message - Topic: {topic_name}, Payload: {{'Key': 'photos/mars_rover_photos_batch_sol_100.json', 'EventName': 's3:ObjectCreated:Put'}}"
+    )
+    mock_logger.info.assert_any_call(
+        f"Parsed Message - Topic: {topic_name}, Upload Path: photos/mars_rover_photos_batch_sol_100.json"
+    )
 
-def test_parse_message_url_encoded_key(mock_logger, mock_kafka_message):
-    """Test message parsing with URL-encoded key"""
-    original_key = "photos/batch file with spaces.json"
-    encoded_key = urllib.parse.quote(original_key)
-    test_event_data = {"Key": encoded_key, "EventName": "s3:ObjectCreated:Put"}
+def test_parse_kafka_message_minio_events_url_encoded(mock_logger):
+    """Test parsing minio-events with URL encoded key"""
+    message = MagicMock()
+    message.value.return_value = json.dumps({
+        "Key": "photos/mars%20rover%20photos.json",
+        "EventName": "s3:ObjectCreated:Put"
+    })
     
-    mock_kafka_message.value.return_value = json.dumps(test_event_data)
-    args = ['arg1', 'arg2', mock_kafka_message]
+    topic_name = "minio-events"
+    args = [None, message]
     
-    result = parse_message(args, mock_logger)
+    result = parse_kafka_message(topic_name, args, mock_logger)
     
-    # Should decode the URL-encoded key
-    assert result["data"] == original_key
-    assert result["event"] == test_event_data
+    # Should decode URL encoding
+    assert result == "photos/mars rover photos.json"
 
-def test_parse_message_missing_key(mock_logger, mock_kafka_message):
-    """Test message parsing when Key is missing"""
-    test_event_data = {"EventName": "s3:ObjectCreated:Put"}  # No Key field
+def test_parse_kafka_message_snowflake_load_complete(sample_snowflake_message, mock_logger):
+    """Test parsing snowflake-load-complete topic message"""
+    topic_name = "snowflake-load-complete"
+    args = [None, sample_snowflake_message]
     
-    mock_kafka_message.value.return_value = json.dumps(test_event_data)
-    args = [mock_kafka_message]
+    result = parse_kafka_message(topic_name, args, mock_logger)
     
-    result = parse_message(args, mock_logger)
+    assert result == "/tmp/mars_rover_photos_batch_sol_100.jsonl"
     
-    # Should handle missing key gracefully
-    assert result["data"] == ""
-    assert result["event"] == test_event_data
+    # Verify logging
+    mock_logger.info.assert_any_call(
+        f"Processing Message - Topic: {topic_name}, Payload: {{'tmp_jsonl_staging_path': '/tmp/mars_rover_photos_batch_sol_100.jsonl'}}"
+    )
+    mock_logger.info.assert_any_call(
+        f"Parsed Message - Topic: {topic_name}, Staging Path: /tmp/mars_rover_photos_batch_sol_100.jsonl"
+    )
 
-def test_parse_message_empty_key(mock_logger, mock_kafka_message):
-    """Test message parsing when Key is empty"""
-    test_event_data = {"Key": "", "EventName": "s3:ObjectCreated:Put"}
+def test_parse_kafka_message_ingestion_scheduling(sample_ingestion_message, mock_logger):
+    """Test parsing ingestion-scheduling topic message"""
+    topic_name = "ingestion-scheduling"
+    args = [None, sample_ingestion_message]
     
-    mock_kafka_message.value.return_value = json.dumps(test_event_data)
-    args = [mock_kafka_message]
+    result = parse_kafka_message(topic_name, args, mock_logger)
     
-    result = parse_message(args, mock_logger)
+    expected_schedule = [{"rover_name": "Curiosity", "sol_start": 100, "sol_end": 150}]
+    assert result == expected_schedule
     
-    assert result["data"] == ""
-    assert result["event"] == test_event_data
+    # Verify logging
+    expected_payload = {
+        "status": "success",
+        "timestamp": "2025-09-22T21:47:59",
+        "ingestion_schedule": [{"rover_name": "Curiosity", "sol_start": 100, "sol_end": 150}]
+    }
+    mock_logger.info.assert_any_call(
+        f"Processing Message - Topic: {topic_name}, Payload: {expected_payload}"
+    )
+    mock_logger.info.assert_any_call(
+        f"Parsed Message - Topic: {topic_name}, Ingestion Schedule: {expected_schedule}"
+    )
 
-def test_parse_message_json_parse_error(mock_logger, mock_kafka_message):
-    """Test message parsing when JSON is invalid"""
-    mock_kafka_message.value.return_value = "invalid json {"
-    args = [mock_kafka_message]
+def test_parse_kafka_message_unknown_topic(mock_kafka_message, mock_logger):
+    """Test parsing unknown topic"""
+    mock_kafka_message.value.return_value = json.dumps({"test": "data"})
+    topic_name = "unknown-topic"
+    args = [None, mock_kafka_message]
     
-    result = parse_message(args, mock_logger)
+    result = parse_kafka_message(topic_name, args, mock_logger)
     
-    assert "error" in result
-    assert isinstance(result["error"], str)
+    assert result == {"test": "data"}
     
-    # Verify error logging
-    mock_logger.error.assert_called_once()
-    error_msg = mock_logger.error.call_args[0][0]
-    assert "Error parsing message" in error_msg
+    # Verify warning logged
+    mock_logger.warning.assert_called_once_with(f"Unknown topic: {topic_name}")
 
-def test_parse_message_value_error(mock_logger, mock_kafka_message):
-    """Test message parsing when message.value() raises an exception"""
-    mock_kafka_message.value.side_effect = Exception("Kafka error")
-    args = [mock_kafka_message]
+def test_parse_kafka_message_missing_key_minio_events(mock_logger):
+    """Test parsing minio-events with missing Key"""
+    message = MagicMock()
+    message.value.return_value = json.dumps({
+        "EventName": "s3:ObjectCreated:Put"
+        # Missing 'Key'
+    })
     
-    result = parse_message(args, mock_logger)
+    topic_name = "minio-events"
+    args = [None, message]
     
-    assert "error" in result
-    assert "Kafka error" in result["error"]
+    result = parse_kafka_message(topic_name, args, mock_logger)
     
-    # Verify error logging
-    mock_logger.error.assert_called_once()
+    # Should return empty string when Key is missing
+    assert result == ""
 
-def test_parse_message_complex_event_data(mock_logger, mock_kafka_message):
-    """Test message parsing with complex event data"""
-    test_key = "photos/complex_batch.json"
-    complex_event_data = {
-        "Key": test_key,
-        "EventName": "s3:ObjectCreated:Put",
-        "Records": [
-            {
-                "eventVersion": "2.1",
-                "eventSource": "minio:s3",
-                "eventTime": "2025-09-10T12:00:00.000Z",
-                "s3": {
-                    "bucket": {"name": "mars-photos"},
-                    "object": {"key": test_key, "size": 1024}
-                }
-            }
-        ]
+def test_parse_kafka_message_missing_field_snowflake(mock_logger):
+    """Test parsing snowflake-load-complete with missing field"""
+    message = MagicMock()
+    message.value.return_value = json.dumps({
+        "other_field": "value"
+        # Missing 'tmp_jsonl_staging_path'
+    })
+    
+    topic_name = "snowflake-load-complete"
+    args = [None, message]
+    
+    result = parse_kafka_message(topic_name, args, mock_logger)
+    
+    # Should return None when field is missing
+    assert result is None
+
+def test_parse_kafka_message_invalid_json(mock_logger):
+    """Test parsing message with invalid JSON"""
+    message = MagicMock()
+    message.value.return_value = "invalid json"
+    
+    topic_name = "minio-events"
+    args = [None, message]
+    
+    with pytest.raises(json.JSONDecodeError):
+        parse_kafka_message(topic_name, args, mock_logger)
+
+
+# ====== UNWRAP_AIRFLOW_ASSET_PAYLOAD TESTS ======
+
+def test_unwrap_airflow_asset_payload_success(sample_airflow_events, mock_logger):
+    """Test successful unwrapping of Airflow asset payload"""
+    result = unwrap_airflow_asset_payload(sample_airflow_events, mock_logger)
+    
+    expected_payload = {"filepath": "photos/test.json", "event": "upload"}
+    assert result == expected_payload
+    
+    # Verify logging
+    mock_logger.info.assert_any_call(f"Unwrapping data from AssetWatcher - Events: {sample_airflow_events}")
+    mock_logger.info.assert_any_call(f"Extracted data from AssetWatcher- Payload: {expected_payload}")
+
+def test_unwrap_airflow_asset_payload_no_payload(mock_logger):
+    """Test unwrapping when events have no payload"""
+    event1 = MagicMock()
+    event1.extra = {}  # No payload
+    
+    event2 = MagicMock()
+    event2.extra = {"other_field": "value"}  # No payload field
+    
+    events = [event1, event2]
+    
+    result = unwrap_airflow_asset_payload(events, mock_logger)
+    
+    assert result is None
+    
+    # Verify logging
+    mock_logger.info.assert_any_call(f"Unwrapping data from AssetWatcher - Events: {events}")
+    mock_logger.info.assert_any_call("No payload found in AssetWatcher event")
+    mock_logger.info.assert_any_call("No event to process")
+
+def test_unwrap_airflow_asset_payload_empty_events(mock_logger):
+    """Test unwrapping with empty events list"""
+    events = []
+    
+    result = unwrap_airflow_asset_payload(events, mock_logger)
+    
+    assert result is None
+    
+    # Verify logging
+    mock_logger.info.assert_any_call(f"Unwrapping data from AssetWatcher - Events: {events}")
+    mock_logger.info.assert_any_call("No event to process")
+
+def test_unwrap_airflow_asset_payload_first_event_has_payload(mock_logger):
+    """Test unwrapping returns first event with payload"""
+    event1 = MagicMock()
+    event1.extra = {"payload": {"first": "payload"}}
+    
+    event2 = MagicMock()
+    event2.extra = {"payload": {"second": "payload"}}
+    
+    events = [event1, event2]
+    
+    result = unwrap_airflow_asset_payload(events, mock_logger)
+    
+    # Should return first payload found
+    assert result == {"first": "payload"}
+    
+    # Should not process second event
+    mock_logger.info.assert_any_call("Extracted data from AssetWatcher- Payload: {'first': 'payload'}")
+
+def test_unwrap_airflow_asset_payload_complex_payload(mock_logger):
+    """Test unwrapping with complex payload data"""
+    complex_payload = {
+        "filepath": "coordinates/mars_rover_coordinates_2025-09-13.json",
+        "event": "coordinate_upload",
+        "metadata": {
+            "rover": "Perseverance",
+            "timestamp": "2025-09-13T15:30:00",
+            "coordinate_count": 150
+        }
     }
     
-    mock_kafka_message.value.return_value = json.dumps(complex_event_data)
-    args = [mock_kafka_message]
+    event = MagicMock()
+    event.extra = {"payload": complex_payload}
     
-    result = parse_message(args, mock_logger)
+    events = [event]
     
-    assert result["data"] == test_key
-    assert result["event"] == complex_event_data
-    assert result["event"]["Records"][0]["s3"]["bucket"]["name"] == "mars-photos"
+    result = unwrap_airflow_asset_payload(events, mock_logger)
+    
+    assert result == complex_payload
+    mock_logger.info.assert_any_call(f"Extracted data from AssetWatcher- Payload: {complex_payload}")
 
-# ====== EXTRACT_FILEPATH_FROM_MESSAGE TESTS ======
-
-def test_extract_filepath_from_message_success(mock_logger):
-    """Test successful filepath extraction"""
-    test_filepath = "photos/mars_rover_photos_batch_sol_150.json"
-    events = [
-        MagicMock(extra={'payload': {'data': test_filepath}})
-    ]
-    
-    result = extract_filepath_from_message(events, mock_logger)
-    
-    assert result == test_filepath
-    
-    # Verify logging
-    assert mock_logger.info.call_count == 2
-    log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
-    assert any("Attempting to extract data from message" in msg for msg in log_calls)
-    assert any("Filepath extracted" in msg and test_filepath in msg for msg in log_calls)
-
-def test_extract_filepath_from_message_no_filepath(mock_logger):
-    """Test filepath extraction when filepath is missing"""
-    events = [
-        MagicMock(extra={'payload': {}})  # No filepath in payload
-    ]
-    
-    result = extract_filepath_from_message(events, mock_logger)
-    
-    assert result is None
-    
-    # Verify appropriate logging
-    log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
-    assert any("No data to process" in msg for msg in log_calls)
-
-def test_extract_filepath_from_message_empty_filepath(mock_logger):
-    """Test filepath extraction when filepath is empty"""
-    events = [
-        MagicMock(extra={'payload': {'data': ''}})
-    ]
-    
-    result = extract_filepath_from_message(events, mock_logger)
-    
-    assert result is None
-    
-    # Verify logging
-    log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
-    assert any("No data to process" in msg for msg in log_calls)
-
-def test_extract_filepath_from_message_none_filepath(mock_logger):
-    """Test filepath extraction when filepath is None"""
-    events = [
-        MagicMock(extra={'payload': {'data': None}})
-    ]
-    
-    result = extract_filepath_from_message(events, mock_logger)
-    
-    assert result is None
-    
-    # Verify logging
-    log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
-    assert any("No data to process" in msg for msg in log_calls)
-
-def test_extract_filepath_from_message_missing_payload(mock_logger):
-    """Test filepath extraction when payload is missing"""
-    events = [
-        MagicMock(extra={})  # No payload
-    ]
-    
-    result = extract_filepath_from_message(events, mock_logger)
-    
-    assert result is None
-
-def test_extract_filepath_from_message_missing_extra(mock_logger):
-    """Test filepath extraction when extra is missing"""
-    events = [
-        MagicMock(extra=None)
-    ]
-    
-    # This should raise an AttributeError, but let's handle it gracefully
-    try:
-        result = extract_filepath_from_message(events, mock_logger)
-        # If no exception, result should be None
-        assert result is None
-    except AttributeError:
-        # This is also acceptable behavior
-        pass
-
-def test_extract_filepath_from_message_multiple_events(mock_logger):
-    """Test filepath extraction with multiple events (should return first valid one)"""
-    first_filepath = "photos/first_batch.json"
-    second_filepath = "photos/second_batch.json"
-    
-    events = [
-        MagicMock(extra={'payload': {'data': first_filepath}}),
-        MagicMock(extra={'payload': {'data': second_filepath}})
-    ]
-    
-    result = extract_filepath_from_message(events, mock_logger)
-    
-    # Should return the first filepath
-    assert result == first_filepath
-    
-    # Should only process the first event
-    assert mock_logger.info.call_count == 2  # Message log + Filepath extracted log
-
-def test_extract_filepath_from_message_first_empty_second_valid(mock_logger):
-    """Test filepath extraction when first event has no filepath but second does"""
-    valid_filepath = "photos/valid_batch.json"
-    
-    events = [
-        MagicMock(extra={'payload': {}}),  # No filepath
-        MagicMock(extra={'payload': {'filepath': valid_filepath}})
-    ]
-    
-    result = extract_filepath_from_message(events, mock_logger)
-    
-    # Should return None because function returns after processing first event
-    assert result is None
-
-def test_extract_filepath_from_message_complex_payload(mock_logger):
-    """Test filepath extraction with complex payload structure"""
-    test_filepath = "photos/complex_structure.json"
-    events = [
-        MagicMock(extra={
-            'payload': {
-                'data': test_filepath,
-                'bucket': 'mars-photos',
-                'event_type': 's3:ObjectCreated:Put',
-                'timestamp': '2025-09-10T12:00:00Z',
-                'metadata': {
-                    'content_type': 'application/json',
-                    'size': 2048
-                }
-            }
-        })
-    ]
-    
-    result = extract_filepath_from_message(events, mock_logger)
-    
-    assert result == test_filepath
-    
-    # Verify logging includes the complex event
-    log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
-    assert any("Attempting to extract data" in msg for msg in log_calls)
-    assert any("Filepath extracted" in msg and test_filepath in msg for msg in log_calls)
 
 # ====== PRODUCE_KAFKA_MESSAGE TESTS ======
 
@@ -309,8 +304,8 @@ def test_produce_kafka_message_success(mock_kafka_producer_class, mock_logger):
     # Verify logging
     assert mock_logger.info.call_count == 2
     log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
-    assert any("Attempting to produce event" in msg and test_topic in msg for msg in log_calls)
-    assert any("Produced message" in msg and test_topic in msg for msg in log_calls)
+    assert any("Attempting to produce message - Topic:" in msg and test_topic in msg for msg in log_calls)
+    assert any("Produced message - Topic:" in msg and test_topic in msg for msg in log_calls)
 
 @patch('src.utils.kafka.KafkaProducer')
 def test_produce_kafka_message_send_failure(mock_kafka_producer_class, mock_logger):
@@ -396,335 +391,3 @@ def test_produce_kafka_message_complex_data(mock_kafka_producer_class, mock_logg
     serialized = serializer(complex_message)
     expected = json.dumps(complex_message).encode('utf-8')
     assert serialized == expected
-
-# ====== GENERATE_LOAD_COMPLETE_MESSAGE TESTS ======
-
-def test_generate_load_complete_message_success(mock_logger):
-    """Test successful load complete message generation"""
-    test_filepath = "/tmp/mars_rover_photos_batch_sol_150.jsonl"
-    
-    with patch('src.utils.kafka.datetime') as mock_datetime:
-        # Mock the datetime to return a fixed time
-        fixed_time = datetime(2025, 9, 11, 10, 30, 45, tzinfo=timezone.utc)
-        mock_datetime.now.return_value = fixed_time
-        mock_datetime.timezone = timezone
-        
-        result = generate_load_complete_message(test_filepath, mock_logger)
-    
-    expected_message = {
-        "filepath": test_filepath,
-        "event": "success",
-        "timestamp": "2025-09-11T10:30:45"
-    }
-    
-    assert result == expected_message
-    
-    # Verify logging
-    assert mock_logger.info.call_count == 2
-    log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
-    assert any("Attempting to generate load complete message" in msg and test_filepath in msg for msg in log_calls)
-    assert any("Message produced" in msg for msg in log_calls)
-
-def test_generate_load_complete_message_different_filepath(mock_logger):
-    """Test load complete message generation with different filepath"""
-    test_filepath = "/opt/airflow/tmp/curiosity_sol_200.jsonl"
-    
-    with patch('src.utils.kafka.datetime') as mock_datetime:
-        # Mock different timestamp
-        fixed_time = datetime(2025, 12, 25, 23, 59, 59, tzinfo=timezone.utc)
-        mock_datetime.now.return_value = fixed_time
-        mock_datetime.timezone = timezone
-        
-        result = generate_load_complete_message(test_filepath, mock_logger)
-    
-    expected_message = {
-        "filepath": test_filepath,
-        "event": "success",
-        "timestamp": "2025-12-25T23:59:59"
-    }
-    
-    assert result == expected_message
-    assert result["filepath"] == test_filepath
-    assert result["event"] == "success"
-    assert result["timestamp"] == "2025-12-25T23:59:59"
-
-def test_generate_load_complete_message_empty_filepath(mock_logger):
-    """Test load complete message generation with empty filepath"""
-    test_filepath = ""
-    
-    with patch('src.utils.kafka.datetime') as mock_datetime:
-        fixed_time = datetime(2025, 9, 11, 12, 0, 0, tzinfo=timezone.utc)
-        mock_datetime.now.return_value = fixed_time
-        mock_datetime.timezone = timezone
-        
-        result = generate_load_complete_message(test_filepath, mock_logger)
-    
-    expected_message = {
-        "filepath": "",
-        "event": "success",
-        "timestamp": "2025-09-11T12:00:00"
-    }
-    
-    assert result == expected_message
-    
-    # Should still log appropriately
-    assert mock_logger.info.call_count == 2
-
-def test_generate_load_complete_message_none_filepath(mock_logger):
-    """Test load complete message generation with None filepath"""
-    test_filepath = None
-    
-    with patch('src.utils.kafka.datetime') as mock_datetime:
-        fixed_time = datetime(2025, 9, 11, 15, 45, 30, tzinfo=timezone.utc)
-        mock_datetime.now.return_value = fixed_time
-        mock_datetime.timezone = timezone
-        
-        result = generate_load_complete_message(test_filepath, mock_logger)
-    
-    expected_message = {
-        "filepath": None,
-        "event": "success",
-        "timestamp": "2025-09-11T15:45:30"
-    }
-    
-    assert result == expected_message
-    assert result["filepath"] is None
-    assert result["event"] == "success"
-
-def test_generate_load_complete_message_timestamp_format(mock_logger):
-    """Test that timestamp format is consistent and correct"""
-    test_filepath = "/tmp/test.jsonl"
-    
-    with patch('src.utils.kafka.datetime') as mock_datetime:
-        # Test edge case timestamps
-        test_cases = [
-            datetime(2025, 1, 1, 0, 0, 0, tzinfo=timezone.utc),  # New year
-            datetime(2025, 12, 31, 23, 59, 59, tzinfo=timezone.utc),  # End of year
-            datetime(2025, 6, 15, 12, 30, 45, tzinfo=timezone.utc),  # Mid year
-        ]
-        
-        for i, fixed_time in enumerate(test_cases):
-            mock_datetime.now.return_value = fixed_time
-            mock_datetime.timezone = timezone
-            
-            result = generate_load_complete_message(test_filepath, mock_logger)
-            
-            # Verify timestamp format
-            timestamp = result["timestamp"]
-            assert len(timestamp) == 19  # YYYY-MM-DDTHH:MM:SS format
-            assert "T" in timestamp
-            assert timestamp.count("-") == 2  # Two dashes in date
-            assert timestamp.count(":") == 2  # Two colons in time
-            
-            # Verify it matches expected format
-            expected_timestamp = fixed_time.strftime("%Y-%m-%dT%H:%M:%S")
-            assert result["timestamp"] == expected_timestamp
-
-# ====== GENERATE_INGESTION_SCHEDULE_MESSAGE TESTS ======
-
-def test_generate_ingestion_schedule_message_success(mock_logger):
-    """Test successful ingestion schedule message generation"""
-    test_schedule = [
-        {"rover_name": "Curiosity", "sol_start": 100, "sol_end": 150},
-        {"rover_name": "Perseverance", "sol_start": 50, "sol_end": 75}
-    ]
-    
-    with patch('src.utils.kafka.datetime') as mock_datetime:
-        # Mock the datetime to return a fixed time
-        fixed_time = datetime(2025, 9, 15, 14, 30, 45, tzinfo=timezone.utc)
-        mock_datetime.now.return_value = fixed_time
-        mock_datetime.timezone = timezone
-        
-        result = generate_ingestion_schedule_message(test_schedule, mock_logger)
-    
-    expected_message = {
-        "schedule": test_schedule,
-        "event": "success",
-        "timestamp": "2025-09-15T14:30:45"
-    }
-    
-    assert result == expected_message
-    assert result["schedule"] == test_schedule
-    assert result["event"] == "success"
-    assert result["timestamp"] == "2025-09-15T14:30:45"
-    
-    # Verify logging
-    assert mock_logger.info.call_count == 2
-    log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
-    assert any("Attempting to generate ingestion schedule message" in msg for msg in log_calls)
-    assert any("Message produced" in msg for msg in log_calls)
-
-def test_generate_ingestion_schedule_message_single_rover(mock_logger):
-    """Test ingestion schedule message generation with single rover"""
-    test_schedule = [
-        {"rover_name": "Opportunity", "sol_start": 200, "sol_end": 300}
-    ]
-    
-    with patch('src.utils.kafka.datetime') as mock_datetime:
-        fixed_time = datetime(2025, 12, 1, 9, 15, 30, tzinfo=timezone.utc)
-        mock_datetime.now.return_value = fixed_time
-        mock_datetime.timezone = timezone
-        
-        result = generate_ingestion_schedule_message(test_schedule, mock_logger)
-    
-    expected_message = {
-        "schedule": test_schedule,
-        "event": "success",
-        "timestamp": "2025-12-01T09:15:30"
-    }
-    
-    assert result == expected_message
-    assert len(result["schedule"]) == 1
-    assert result["schedule"][0]["rover_name"] == "Opportunity"
-    assert result["schedule"][0]["sol_start"] == 200
-    assert result["schedule"][0]["sol_end"] == 300
-
-def test_generate_ingestion_schedule_message_empty_schedule(mock_logger):
-    """Test ingestion schedule message generation with empty schedule"""
-    test_schedule = []
-    
-    with patch('src.utils.kafka.datetime') as mock_datetime:
-        fixed_time = datetime(2025, 9, 15, 12, 0, 0, tzinfo=timezone.utc)
-        mock_datetime.now.return_value = fixed_time
-        mock_datetime.timezone = timezone
-        
-        result = generate_ingestion_schedule_message(test_schedule, mock_logger)
-    
-    expected_message = {
-        "schedule": [],
-        "event": "success",
-        "timestamp": "2025-09-15T12:00:00"
-    }
-    
-    assert result == expected_message
-    assert result["schedule"] == []
-    assert result["event"] == "success"
-    
-    # Should still log appropriately
-    assert mock_logger.info.call_count == 2
-
-def test_generate_ingestion_schedule_message_complex_schedule(mock_logger):
-    """Test ingestion schedule message generation with complex schedule data"""
-    test_schedule = [
-        {
-            "rover_name": "Curiosity",
-            "sol_start": 1000,
-            "sol_end": 1200,
-            "cameras": ["FHAZ", "RHAZ", "MAST"],
-            "priority": "high"
-        },
-        {
-            "rover_name": "Perseverance", 
-            "sol_start": 500,
-            "sol_end": 600,
-            "cameras": ["NAVCAM_LEFT", "NAVCAM_RIGHT"],
-            "priority": "medium"
-        },
-        {
-            "rover_name": "Spirit",
-            "sol_start": 1,
-            "sol_end": 50,
-            "cameras": ["PANCAM"],
-            "priority": "low"
-        }
-    ]
-    
-    with patch('src.utils.kafka.datetime') as mock_datetime:
-        fixed_time = datetime(2025, 10, 31, 23, 45, 15, tzinfo=timezone.utc)
-        mock_datetime.now.return_value = fixed_time
-        mock_datetime.timezone = timezone
-        
-        result = generate_ingestion_schedule_message(test_schedule, mock_logger)
-    
-    expected_message = {
-        "schedule": test_schedule,
-        "event": "success",
-        "timestamp": "2025-10-31T23:45:15"
-    }
-    
-    assert result == expected_message
-    assert len(result["schedule"]) == 3
-    assert result["schedule"][0]["cameras"] == ["FHAZ", "RHAZ", "MAST"]
-    assert result["schedule"][1]["priority"] == "medium"
-    assert result["schedule"][2]["rover_name"] == "Spirit"
-
-def test_generate_ingestion_schedule_message_none_schedule(mock_logger):
-    """Test ingestion schedule message generation with None schedule"""
-    test_schedule = None
-    
-    with patch('src.utils.kafka.datetime') as mock_datetime:
-        fixed_time = datetime(2025, 9, 15, 16, 20, 10, tzinfo=timezone.utc)
-        mock_datetime.now.return_value = fixed_time
-        mock_datetime.timezone = timezone
-        
-        result = generate_ingestion_schedule_message(test_schedule, mock_logger)
-    
-    expected_message = {
-        "schedule": None,
-        "event": "success",
-        "timestamp": "2025-09-15T16:20:10"
-    }
-    
-    assert result == expected_message
-    assert result["schedule"] is None
-    assert result["event"] == "success"
-
-def test_generate_ingestion_schedule_message_timestamp_format(mock_logger):
-    """Test that timestamp format is consistent and correct for ingestion schedule messages"""
-    test_schedule = [{"rover_name": "Test", "sol_start": 1, "sol_end": 2}]
-    
-    with patch('src.utils.kafka.datetime') as mock_datetime:
-        # Test edge case timestamps
-        test_cases = [
-            datetime(2025, 1, 1, 0, 0, 0, tzinfo=timezone.utc),  # New year
-            datetime(2025, 12, 31, 23, 59, 59, tzinfo=timezone.utc),  # End of year
-            datetime(2025, 6, 15, 12, 30, 45, tzinfo=timezone.utc),  # Mid year
-        ]
-        
-        for i, fixed_time in enumerate(test_cases):
-            mock_datetime.now.return_value = fixed_time
-            mock_datetime.timezone = timezone
-            
-            result = generate_ingestion_schedule_message(test_schedule, mock_logger)
-            
-            # Verify timestamp format
-            timestamp = result["timestamp"]
-            assert len(timestamp) == 19  # YYYY-MM-DDTHH:MM:SS format
-            assert "T" in timestamp
-            assert timestamp.count("-") == 2  # Two dashes in date
-            assert timestamp.count(":") == 2  # Two colons in time
-            
-            # Verify it matches expected format
-            expected_timestamp = fixed_time.strftime("%Y-%m-%dT%H:%M:%S")
-            assert result["timestamp"] == expected_timestamp
-
-def test_generate_ingestion_schedule_message_logging_content(mock_logger):
-    """Test that logging includes the ingestion schedule content"""
-    test_schedule = [
-        {"rover_name": "TestRover", "sol_start": 42, "sol_end": 84}
-    ]
-    
-    with patch('src.utils.kafka.datetime') as mock_datetime:
-        fixed_time = datetime(2025, 9, 15, 10, 10, 10, tzinfo=timezone.utc)
-        mock_datetime.now.return_value = fixed_time
-        mock_datetime.timezone = timezone
-        
-        result = generate_ingestion_schedule_message(test_schedule, mock_logger)
-    
-    # Verify logging includes schedule details
-    assert mock_logger.info.call_count == 2
-    log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
-    
-    # First log should mention the schedule
-    first_log = log_calls[0]
-    assert "Attempting to generate ingestion schedule message" in first_log
-    
-    # Second log should include the complete message
-    second_log = log_calls[1]
-    assert "Message produced" in second_log
-    
-    # Verify the result structure
-    assert "schedule" in result
-    assert "event" in result
-    assert "timestamp" in result
-    assert result["event"] == "success"
