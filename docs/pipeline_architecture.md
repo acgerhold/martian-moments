@@ -6,22 +6,7 @@ Event-driven data pipeline architecture for NASA Mars rover data ingestion, proc
 
 The Martian Moments pipeline is built on event-driven architecture using Apache Kafka for message coordination and Apache Airflow for workflow orchestration. The system processes NASA Mars rover data through a medallion architecture (Bronze/Silver/Gold) with automated batch scheduling and real-time event processing.
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   NASA APIs    │    │   Kafka Event  │    │     MinIO       │    │   Snowflake     │
-│                 │    │   Streaming     │    │   Object Store  │    │  Data Warehouse │
-│ • Photos API    │───▶│                 │───▶│                 │───▶│                 │
-│ • Manifest API  │    │ • Scheduling    │    │ • JSON Files    │    │ • Bronze Layer  │
-│ • Traverse JSON │    │ • File Events   │    │ • Event Trigger │    │ • Silver Layer  │
-│                 │    │ • Load Complete │    │ • S3 Compatible │    │ • Gold Layer    │
-└─────────────────┘    └─────────────────┘    └─────────────────┘    └─────────────────┘
-          ▲                        ▲                        ▲                        ▲
-          │                        │                        │                        │
-     ┌────▼────┐              ┌────▼────┐              ┌────▼────┐              ┌────▼────┐
-     │ Airflow │              │  Event  │              │  dbt    │              │Analytics│
-     │  DAGs   │              │Triggers │              │Transform│              │Dashboard│
-     └─────────┘              └─────────┘              └─────────┘              └─────────┘
-```
+![Martian Moments Diagram](https://github.com/user-attachments/assets/cb8cc0ae-2cc9-4c90-8603-1646205529e4)
 
 ## 📊 Data Flow Architecture
 
