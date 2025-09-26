@@ -1,5 +1,8 @@
 {{ config(
-    materialized='view',
+    materialized='incremental',
+    unique_key='image_id',
+    incremental_strategy='append',
+    cluster_by=['rover_id', 'sol', 'earth_date'],
     tags='flatten'
 ) }}
 
@@ -20,3 +23,6 @@ SELECT
 FROM 
     {{ source('MARS_BRONZE', 'RAW_PHOTO_RESPONSE') }} rpr,
     LATERAL FLATTEN(input => parse_json(rpr.photos)) AS photo
+{% if is_incremental() %}
+    WHERE rpr.ingestion_date > (SELECT MAX(ingestion_date) FROM {{ this }})
+{% endif %}

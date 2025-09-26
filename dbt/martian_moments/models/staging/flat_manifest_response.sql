@@ -1,5 +1,8 @@
 {{ config(
-    materialized='view',
+    materialized='incremental',
+    unique_key='rover_name',
+    incremental_strategy='merge',
+    cluster_by=['rover_name'],
     tags='flatten'
 ) }}
 
@@ -16,5 +19,6 @@ SELECT
 FROM 
     {{ source('MARS_BRONZE', 'RAW_MANIFEST_RESPONSE') }} rmr,
     LATERAL FLATTEN(input => parse_json(rmr.manifests)) as manifest
-WHERE 
-    rmr.ingestion_date = (SELECT MAX(ingestion_date) FROM {{ source('MARS_BRONZE', 'RAW_MANIFEST_RESPONSE') }})
+{% if is_incremental() %}
+    WHERE rmr.ingestion_date > (SELECT MAX(ingestion_date) FROM {{ this }})
+{% endif %}
