@@ -3,7 +3,7 @@
     tags='normalize'
 ) }}
 
-SELECT DISTINCT
+SELECT
     camera_id,
     rover_id,
     camera_name,
@@ -28,3 +28,9 @@ SELECT DISTINCT
     END AS camera_category
 FROM 
     {{ source('MARS_SILVER', 'FLAT_PHOTO_RESPONSE') }}
+GROUP BY
+    camera_id,
+    rover_id,
+    camera_name,
+    camera_full_name,
+    camera_category

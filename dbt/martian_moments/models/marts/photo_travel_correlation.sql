@@ -11,7 +11,7 @@ SELECT
     fpr.sol AS sol,
     fpr.image_id,
     CASE 
-        WHEN fpr.rover_id = 8
+        WHEN fpr.rover_id = 8 AND img_src LIKE '%_[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_%'
             THEN REGEXP_SUBSTR(img_src, '_([0-9]{10})_', 1, 1, 'e', 1)::BIGINT      
         ELSE NULL
     END as photo_time,
@@ -29,3 +29,5 @@ INNER JOIN
     {{ source('MARS_SILVER', 'FACT_PATH') }} fpa 
         ON fpr.rover_id = fpa.rover_id 
         AND fpr.sol = fpa.sol
+WHERE 
+    fpr.rover_id = 8

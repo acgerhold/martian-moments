@@ -11,9 +11,10 @@ SELECT
     manifest.value:total_photos::int as total_photos,
     manifest.value:launch_date::date as launch_date,
     manifest.value:landing_date::date as landing_date,
-    manifest.value:photos::variant as photos    
+    manifest.value:photos::variant as photos,
+    rmr.ingestion_date as ingestion_date    
 FROM 
-    {{ source('MARS_BRONZE', 'RAW_MANIFEST_RESPONSE') }} rpr,
-    LATERAL FLATTEN(input => parse_json(rpr.manifests)) as manifest
+    {{ source('MARS_BRONZE', 'RAW_MANIFEST_RESPONSE') }} rmr,
+    LATERAL FLATTEN(input => parse_json(rmr.manifests)) as manifest
 WHERE 
-    rpr.ingestion_date = (SELECT MAX(ingestion_date) FROM {{ source('MARS_BRONZE', 'RAW_MANIFEST_RESPONSE') }})
+    rmr.ingestion_date = (SELECT MAX(ingestion_date) FROM {{ source('MARS_BRONZE', 'RAW_MANIFEST_RESPONSE') }})
