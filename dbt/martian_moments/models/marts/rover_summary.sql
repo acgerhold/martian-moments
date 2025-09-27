@@ -7,20 +7,19 @@
 ) }}
 
 SELECT
-    dr.rover_name AS name,
-    dr.rover_status AS status,
-    dr.launch_date AS launch_date,
-    dr.landing_date AS landing_date,
-    MAX(fp.sol) AS max_sol,
-    MAX(fp.earth_date) AS max_date,
-    COUNT(fp.image_id) AS total_photos
+    dro.rover_name AS name,
+    dro.rover_status AS status,
+    dro.launch_date AS launch_date,
+    dro.landing_date AS landing_date,
+    MAX(fph.sol) AS max_sol,
+    MAX(fph.earth_date) AS max_date,
+    COUNT(fph.image_id) AS total_photos
 FROM 
-    {{ source('MARS_SILVER', 'FACT_PHOTOS') }} fp
+    {{ source('MARS_SILVER', 'FACT_PHOTOS') }} fph
 JOIN 
-    {{ source('MARS_SILVER', 'DIM_ROVERS') }} dr
-        ON fp.rover_id = dr.rover_id
+    {{ source('MARS_SILVER', 'DIM_ROVERS') }} dro ON fph.rover_id = dro.rover_id
 GROUP BY
-    dr.rover_name,
-    dr.rover_status,
-    dr.launch_date,
-    dr.landing_date
+    dro.rover_name,
+    dro.rover_status,
+    dro.launch_date,
+    dro.landing_date

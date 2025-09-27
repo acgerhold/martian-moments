@@ -25,7 +25,8 @@ SELECT
             'MARDI')
             THEN 'Entry, Descent, and Landing'
         ELSE 'Other'
-    END AS camera_category
+    END AS camera_category,
+    ingestion_date
 FROM 
     {{ source('MARS_SILVER', 'FLAT_PHOTO_RESPONSE') }}
 GROUP BY
@@ -33,4 +34,5 @@ GROUP BY
     rover_id,
     camera_name,
     camera_full_name,
-    camera_category
+    camera_category,
+    ingestion_date

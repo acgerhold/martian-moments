@@ -21,9 +21,9 @@ SELECT
             THEN 'Short Travel'
         ELSE 
             'Long Travel'
-    END as day_type
+    END as day_type,
+    fcr.ingestion_date as ingestion_date
 FROM 
     {{ source('MARS_SILVER', 'FLAT_COORDINATE_RESPONSE') }} fcr
 JOIN 
-    {{ source('MARS_SILVER', 'DIM_ROVERS') }} dro 
-        ON fcr.rover_name = dro.rover_name
+    {{ source('MARS_SILVER', 'DIM_ROVERS') }} dro ON fcr.rover_name = dro.rover_name

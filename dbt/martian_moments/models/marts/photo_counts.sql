@@ -7,21 +7,19 @@
 ) }}
 
 SELECT 
-    dr.rover_name AS name,
-    fp.sol as sol,
-    dc.camera_full_name AS camera,
-    dc.camera_name AS camera_abv,
-    COUNT(fp.image_id) AS total_photos
+    dro.rover_name AS name,
+    fph.sol AS sol,
+    dca.camera_full_name AS camera,
+    dca.camera_name AS camera_abv,
+    COUNT(fph.image_id) AS total_photos
 FROM 
-    {{ source('MARS_SILVER', 'FACT_PHOTOS') }} fp
+    {{ source('MARS_SILVER', 'FACT_PHOTOS') }} fph
 JOIN 
-    {{ source('MARS_SILVER', 'DIM_ROVERS') }} dr 
-        ON fp.rover_id = dr.rover_id
+    {{ source('MARS_SILVER', 'DIM_ROVERS') }} dro ON fph.rover_id = dro.rover_id
 JOIN 
-    {{ source('MARS_SILVER', 'DIM_CAMERAS') }} dc 
-        ON fp.camera_id = dc.camera_id
+    {{ source('MARS_SILVER', 'DIM_CAMERAS') }} dca ON fph.camera_id = dca.camera_id
 GROUP BY
-    dr.rover_name,
-    fp.sol,
-    dc.camera_full_name,
-    dc.camera_name
+    dro.rover_name,
+    fph.sol,
+    dca.camera_full_name,
+    dca.camera_name

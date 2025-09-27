@@ -6,22 +6,36 @@
     tags='aggregate'
 ) }}
 
+WITH camera_counts AS (
+    SELECT 
+        fph.rover_id,
+        fph.earth_date,
+        fph.sol,
+        dca.camera_name,
+        COUNT(*) as photos_per_camera
+    FROM 
+        {{ source('MARS_SILVER', 'FACT_PHOTOS') }} fph
+    JOIN 
+        {{ source('MARS_SILVER', 'DIM_CAMERAS') }} dca ON fph.camera_id = dca.camera_id
+    GROUP BY 
+        fph.rover_id, 
+        fph.earth_date, 
+        fph.sol, 
+        dca.camera_name
+)
 SELECT 
-    dr.rover_name AS rover_name,
-    fp.earth_date AS earth_date,
-    fp.sol AS sol,
-    LISTAGG(DISTINCT dc.camera_name, ', ') AS camera_names,
-    COUNT(DISTINCT dc.camera_name) AS cameras_used,
-    COUNT(fp.image_id) AS total_photos
+    dro.rover_name,
+    cc.earth_date,
+    cc.sol,
+    COUNT(DISTINCT cc.camera_name) AS cameras_used,
+    COUNT(fph.image_id) as total_photos
 FROM 
-    {{ source('MARS_SILVER', 'FACT_PHOTOS') }} fp
+    camera_counts cc
+JOIN
+    {{ source('MARS_SILVER', 'FACT_PHOTOS') }} fph ON cc.rover_id = fph.rover_id AND cc.sol = fph.sol
 JOIN 
-    {{ source('MARS_SILVER', 'DIM_ROVERS') }} dr 
-        ON fp.rover_id = dr.rover_id
-JOIN 
-    {{ source('MARS_SILVER', 'DIM_CAMERAS') }} dc 
-        ON fp.camera_id = dc.camera_id
-GROUP BY
-    dr.rover_name,
-    fp.earth_date,
-    fp.sol
+    {{ source('MARS_SILVER', 'DIM_ROVERS') }} dro ON cc.rover_id = dro.rover_id
+GROUP BY 
+    dro.rover_name, 
+    cc.earth_date, 
+    cc.sol

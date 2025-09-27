@@ -18,14 +18,13 @@ SELECT
 FROM 
     {{ source('MARS_SILVER', 'FACT_PHOTOS') }} fph
 JOIN
-    {{ source('MARS_SILVER', 'DIM_CAMERAS') }} dca 
-        ON fph.camera_id = dca.camera_id
+    {{ source('MARS_SILVER', 'DIM_CAMERAS') }} dca ON fph.camera_id = dca.camera_id
 JOIN
-    {{ source ('MARS_SILVER', 'DIM_ROVERS') }} dro 
-        ON fph.rover_id = dro.rover_id
-FULL OUTER JOIN
-    {{ source('MARS_SILVER', 'FACT_PATH') }} fpa 
-        ON fpa.rover_id = fph.rover_id 
-        AND fph.sol = fpa.sol
+    {{ source ('MARS_SILVER', 'DIM_ROVERS') }} dro ON fph.rover_id = dro.rover_id
+LEFT JOIN
+    {{ source('MARS_SILVER', 'FACT_PATH') }} fpa ON fpa.rover_id = fph.rover_id AND fph.sol = fpa.sol
 GROUP BY 
-    dro.rover_name, COALESCE(fpa.sol, fph.sol), fpa.day_type, fpa.length
+    dro.rover_name, 
+    COALESCE(fpa.sol, fph.sol), 
+    fpa.day_type, 
+    fpa.length

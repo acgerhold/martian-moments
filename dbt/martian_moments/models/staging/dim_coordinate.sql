@@ -11,11 +11,11 @@ SELECT
     sol,
     GET(coord.value, 0) AS longitude,
     GET(coord.value, 1) AS latitude,
-    GET(coord.value, 2) AS elevation
+    GET(coord.value, 2) AS elevation,
+    fcr.ingestion_date AS ingestion_date
 FROM 
     {{ source('MARS_SILVER', 'FLAT_COORDINATE_RESPONSE') }} fcr
 CROSS JOIN 
     LATERAL FLATTEN(input => coordinates) coord
 JOIN 
-    {{ source('MARS_SILVER', 'DIM_ROVERS') }} dro 
-        ON fcr.rover_name = dro.rover_name
+    {{ source('MARS_SILVER', 'DIM_ROVERS') }} dro ON fcr.rover_name = dro.rover_name
