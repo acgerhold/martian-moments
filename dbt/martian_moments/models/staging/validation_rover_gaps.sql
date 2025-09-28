@@ -15,7 +15,7 @@ WITH manifest_data AS (
 
 actual_data AS (
     SELECT 
-        name as rover_name,
+        rover_name,
         max_sol as actual_max_sol,
         max_date as actual_max_date,
         total_photos as actual_total_photos

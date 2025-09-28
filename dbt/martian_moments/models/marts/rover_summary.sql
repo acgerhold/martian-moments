@@ -7,10 +7,10 @@
 ) }}
 
 SELECT
-    dro.rover_name AS name,
-    dro.rover_status AS status,
-    dro.launch_date AS launch_date,
-    dro.landing_date AS landing_date,
+    dro.rover_name,
+    dro.rover_status,
+    dro.launch_date,
+    dro.landing_date,
     MAX(fph.sol) AS max_sol,
     MAX(fph.earth_date) AS max_date,
     COUNT(fph.image_id) AS total_photos
