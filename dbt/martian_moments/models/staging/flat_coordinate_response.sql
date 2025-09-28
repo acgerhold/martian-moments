@@ -1,5 +1,8 @@
 {{ config(
-    materialized='view',
+    materialized='incremental',
+    unique_key=['rover_name', 'sol'],
+    incremental_strategy='merge',
+    cluster_by=['rover_name', 'sol'],
     tags='flatten'
 ) }}
 
@@ -11,9 +14,11 @@ SELECT
     coordinate.value:properties.toRMC::string as to_rmc,
     coordinate.value:properties.length::float as length,
     coordinate.value:properties.SCLK_START::int as sclk_start,
-    coordinate.value:properties.SCLK_END::int as sclk_end  
+    coordinate.value:properties.SCLK_END::int as sclk_end,
+    rcr.ingestion_date as ingestion_date
 FROM 
     {{ source('MARS_BRONZE', 'RAW_COORDINATE_RESPONSE') }} rcr,
     LATERAL FLATTEN(input => parse_json(coordinates)) as coordinate
-WHERE 
-    rcr.ingestion_date = (SELECT MAX(ingestion_date) FROM {{ source('MARS_BRONZE', 'RAW_COORDINATE_RESPONSE') }})
+{% if is_incremental() %}
+    WHERE rcr.ingestion_date > (SELECT MAX(ingestion_date) FROM {{ this }})
+{% endif %}

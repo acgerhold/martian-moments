@@ -23,7 +23,7 @@ actual_sol_data AS (
         total_photos as actual_total_photos,
         cameras_used as actual_camera_count
     FROM 
-        {{ ref('camera_summary') }} cs
+        {{ ref('photo_summary') }} ps
 ),
 
 validation_results AS (
