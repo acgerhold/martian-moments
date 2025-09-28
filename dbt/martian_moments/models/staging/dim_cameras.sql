@@ -11,13 +11,13 @@ SELECT
     CASE 
         WHEN camera_name IN (
             'NAVCAM_LEFT','NAVCAM_RIGHT','FRONT_HAZCAM_LEFT_A','FRONT_HAZCAM_RIGHT_A','REAR_HAZCAM_LEFT','REAR_HAZCAM_RIGHT',
-            'NAVCAM', 'FHAZ', 'RHAZ',
+            'NAVCAM', 'FHAZ', 'RHAZ', 'FHAZ_LEFT_B', 'FHAZ_RIGHT_B', 'RHAZ_LEFT_B', 'RHAZ_RIGHT_B', 'NAV_RIGHT_B', 'NAV_LEFT_B'
             'PANCAM') 
             THEN 'Engineering'
         WHEN camera_name IN (
             'MCZ_RIGHT', 'MCZ_LEFT', 'SHERLOC_WATSON', 'SUPERCAM_RMI', 'SKYCAM',
             'MINITES',
-            'CHEMCAM', 'MAST', 'MAHLI') 
+            'CHEMCAM', 'CHEMCAM_RMI', 'MAST', 'MAST_LEFT', 'MAST_RIGHT', 'MAHLI') 
             THEN 'Science'
         WHEN camera_name IN (
             'EDL_RUCAM', 'EDL_RDCAM', 'EDL_PUCAM1', 'EDL_PUCAM2', 'EDL_DDCAM',
@@ -25,8 +25,7 @@ SELECT
             'MARDI')
             THEN 'Entry, Descent, and Landing'
         ELSE 'Other'
-    END AS camera_category,
-    ingestion_date
+    END AS camera_category
 FROM 
     {{ source('MARS_SILVER', 'FLAT_PHOTO_RESPONSE') }}
 GROUP BY
@@ -34,5 +33,4 @@ GROUP BY
     rover_id,
     camera_name,
     camera_full_name,
-    camera_category,
-    ingestion_date
+    camera_category

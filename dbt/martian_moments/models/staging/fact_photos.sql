@@ -10,7 +10,6 @@ SELECT
     rover_id,
     earth_date,
     img_src,
-    ingestion_date,
 FROM 
     {{ source('MARS_SILVER', 'FLAT_PHOTO_RESPONSE') }}
 GROUP BY
@@ -19,5 +18,4 @@ GROUP BY
     sol,
     rover_id,
     earth_date,
-    img_src,
-    ingestion_date
+    img_src

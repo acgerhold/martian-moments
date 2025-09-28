@@ -8,8 +8,7 @@ SELECT
     rover_name,
     rover_status,
     launch_date,
-    landing_date,
-    ingestion_date
+    landing_date
 FROM 
     {{ source('MARS_SILVER', 'FLAT_PHOTO_RESPONSE') }}
 GROUP BY
@@ -17,5 +16,4 @@ GROUP BY
     rover_name,
     rover_status,
     launch_date,
-    landing_date,
-    ingestion_date
+    landing_date
