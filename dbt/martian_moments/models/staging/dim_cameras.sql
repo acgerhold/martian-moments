@@ -11,7 +11,7 @@ SELECT
     CASE 
         WHEN camera_name IN (
             'NAVCAM_LEFT','NAVCAM_RIGHT','FRONT_HAZCAM_LEFT_A','FRONT_HAZCAM_RIGHT_A','REAR_HAZCAM_LEFT','REAR_HAZCAM_RIGHT',
-            'NAVCAM', 'FHAZ', 'RHAZ', 'FHAZ_LEFT_B', 'FHAZ_RIGHT_B', 'RHAZ_LEFT_B', 'RHAZ_RIGHT_B', 'NAV_RIGHT_B', 'NAV_LEFT_B'
+            'NAVCAM', 'FHAZ', 'RHAZ', 'FHAZ_LEFT_B', 'FHAZ_RIGHT_B', 'RHAZ_LEFT_B', 'RHAZ_RIGHT_B', 'NAV_RIGHT_B', 'NAV_LEFT_B',
             'PANCAM') 
             THEN 'Engineering'
         WHEN camera_name IN (
