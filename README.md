@@ -6,6 +6,8 @@ Event-driven data pipeline for ingesting, processing, and analyzing NASA Mars ro
 
 Automated ingestion system that pulls data from NASA's Mars rover missions (Curiosity, Perseverance, Spirit, Opportunity) and processes it through a multi-stage data pipeline. The system handles complex batch scheduling, real-time event processing, and data transformation for analytics and future timelapse video generation.
 
+![Martian Moments Pipeline Architecture](docs/Martian%20Moments%20Diagram.jpg)
+
 ## 🛠️ Tech Stack
 
 **Data Pipeline & Orchestration:**
