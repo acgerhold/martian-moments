@@ -5,22 +5,22 @@
 
 WITH manifest_data AS (
     SELECT 
-        rover_name,
-        max_sol as manifest_max_sol,
-        max_date as manifest_max_date,
-        total_photos as manifest_total_photos
+        fmr.rover_name,
+        fmr.max_sol as manifest_max_sol,
+        fmr.max_date as manifest_max_date,
+        fmr.total_photos as manifest_total_photos
     FROM 
-        {{ ref('flat_manifest_response') }}
+        {{ source('MARS_SILVER', 'FLAT_MANIFEST_RESPONSE') }} fmr
 ),
 
 actual_data AS (
     SELECT 
-        rover_name,
-        max_sol as actual_max_sol,
-        max_date as actual_max_date,
-        total_photos as actual_total_photos
+        rs.rover_name,
+        rs.max_sol as actual_max_sol,
+        rs.max_date as actual_max_date,
+        rs.total_photos as actual_total_photos
     FROM 
-        {{ ref('rover_summary') }}
+        {{ source('MARS_GOLD', 'ROVER_SUMMARY') }} rs
 ),
 
 validation_results AS (

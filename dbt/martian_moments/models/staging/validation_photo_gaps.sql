@@ -11,19 +11,19 @@ WITH manifest_sol_data AS (
         sol.value:total_photos::int as manifest_total_photos,
         ARRAY_SIZE(sol.value:cameras) as manifest_camera_count
     FROM 
-        {{ ref('flat_manifest_response') }} fmr,
+        {{ source('MARS_SILVER', 'FLAT_MANIFEST_RESPONSE') }} fmr,
         LATERAL FLATTEN(input => parse_json(fmr.photos)) as sol
 ),
 
 actual_sol_data AS (
     SELECT 
-        rover_name,
-        sol,
-        earth_date,
-        total_photos as actual_total_photos,
-        cameras_used as actual_camera_count
+        ps.rover_name,
+        ps.sol,
+        ps.earth_date,
+        ps.total_photos as actual_total_photos,
+        ps.cameras_used as actual_camera_count
     FROM 
-        {{ ref('photo_summary') }} ps
+        {{ source('MARS_GOLD', 'PHOTO_SUMMARY') }} ps
 ),
 
 validation_results AS (
