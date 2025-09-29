@@ -36,15 +36,15 @@ def mars_rover_photos_ingestion_dag():
         ingestion_batch = unwrap_airflow_asset_payload(triggering_asset_events[ingestion_scheduling_asset], logger)
         return ingestion_batch
    
-    @task
-    def generate_tasks_for_batch_task(ingestion_batch):
-        logger = setup_logger('get_ingestion_config_task', 'photo_ingestion_dag.log', 'ingestion')     
-        ingestion_batch_tasks = generate_tasks_for_photos_batch(ingestion_batch, logger)  
-        return ingestion_batch_tasks
+    # @task
+    # def generate_tasks_for_batch_task(ingestion_batch):
+    #     logger = setup_logger('get_ingestion_config_task', 'photo_ingestion_dag.log', 'ingestion')     
+    #     ingestion_batch_tasks = generate_tasks_for_photos_batch(ingestion_batch, logger)  
+    #     return ingestion_batch_tasks
 
     @task
-    def extract_tasks_from_batch(ingestion_batch_tasks):
-        return ingestion_batch_tasks["tasks"]
+    def extract_tasks_from_batch(ingestion_batch):
+        return ingestion_batch["tasks"]
 
     @task
     def fetch_and_collect_rover_photos_task(rover: str, sol: int):
@@ -53,8 +53,8 @@ def mars_rover_photos_ingestion_dag():
         return photos_result
     
     @task 
-    def extract_sol_range_from_batch(ingestion_batch_tasks):
-        return ingestion_batch_tasks["sol_range"]
+    def extract_sol_range_from_batch(ingestion_batch):
+        return ingestion_batch["sol_range"]
 
     @task
     def create_combined_batch_file_task(all_rover_photo_results: list, sol_range):
@@ -63,9 +63,9 @@ def mars_rover_photos_ingestion_dag():
         upload_json_to_minio(final_photos_json, logger)
 
     ingestion_batch = extract_ingestion_batch_from_payload_task()
-    ingestion_batch_tasks = generate_tasks_for_batch_task(ingestion_batch)
-    tasks = extract_tasks_from_batch(ingestion_batch_tasks)
-    sol_range = extract_sol_range_from_batch(ingestion_batch_tasks)
+    # ingestion_batch_tasks = generate_tasks_for_batch_task(ingestion_batch)
+    tasks = extract_tasks_from_batch(ingestion_batch)
+    sol_range = extract_sol_range_from_batch(ingestion_batch)
     all_rover_photo_results = fetch_and_collect_rover_photos_task.expand_kwargs(tasks)
     create_combined_batch_file_task(all_rover_photo_results, sol_range)
 

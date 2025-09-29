@@ -99,7 +99,7 @@ sources:
             tests:
               - not_null
               - unique
-      - name: VALIDATION_CAMERA_GAPS
+      - name: VALIDATION_PHOTO_GAPS
         description: "Data quality view identifying discrepancies between manifest data and actual photo records at the sol level."
         columns:
         - name: ROVER_NAME
@@ -113,13 +113,6 @@ sources:
           description: "Name of the Mars rover being validated for data completeness."
           tests:
             - not_null
-      - name: INGESTION_PLANNING
-        description: "Operational view providing ingestion schedules and gap analysis for automated batch processing coordination."
-        columns:
-        - name: ROVER_NAME
-          description: "Name of the Mars rover for ingestion planning and scheduling."
-          tests:
-            - not_null
   - name: MARS_GOLD
     description: "Gold layer incremental tables containing analysis-ready datasets from joined silver views."
     database: MARS_DB
@@ -129,7 +122,6 @@ sources:
         description: "Breakdown of the number of photos taken and number of cameras used by sol. Used in validation_photo_gaps to compare with manifest data."
       - name: ROVER_SUMMARY
         description: "Breakdown of the total photos, max sol/earth date, and mission status of a rover. Used in validation_rover_gaps to compare with manifest data"
-
 
 models:
   - name: FLAT_PHOTO_RESPONSE

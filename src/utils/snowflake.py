@@ -73,7 +73,7 @@ def fetch_next_ingestion_batch(run_dbt_models_success, logger):
 
         try: 
             snowflake_cursor.execute(f"USE SCHEMA {os.getenv('SNOWFLAKE_DATABASE')}.{os.getenv('SNOWFLAKE_SCHEMA_SILVER')};")
-            table_results = snowflake_cursor.execute(f"SELECT * FROM INGESTION_PLANNING;").fetchall()
+            table_results = snowflake_cursor.execute(f"SELECT rover_name, sol FROM VALIDATION_PHOTO_GAPS WHERE validation_status = 'MISSING_SOL' ORDER BY sol LIMIT 73;").fetchall()
             columns = [desc[0] for desc in snowflake_cursor.description]
             table_results_dataframe = pd.DataFrame(table_results, columns=columns)
             logger.info(f"Fetched results from INGESTION_PLANNING - Results: {table_results_dataframe}")
@@ -81,23 +81,24 @@ def fetch_next_ingestion_batch(run_dbt_models_success, logger):
             logger.error(f"Error fetching results from INGESTION_PLANNING - Error: {e}")
 
         try:
-            ingestion_batches = []
+            sol_range = list(range(table_results_dataframe['sol'].min(), table_results_dataframe['sol'].max()))
+            ingestion_tasks = []
             for _, row in table_results_dataframe.iterrows():
-                if not row['UP_TO_DATE']:
-                    batch = {
+                    task = {
                         "rover_name": row['ROVER_NAME'],
-                        "sol_start": row['START_SOL'],
-                        "sol_end": row['END_SOL']
+                        "sol": row['SOL'],
                     }
-                    ingestion_batches.append(batch)
+                    ingestion_tasks.append(task)
+        
+            ingestion_batch = {"tasks": ingestion_tasks, "sol_range": sol_range}
 
         finally:
             snowflake_cursor.close()
             snowflake_connection.close()
             
-            logger.info(f"Fetched next ingestion batch - Batch: {ingestion_batches}")
+            logger.info(f"Fetched next ingestion batch - Batch: {ingestion_batch}")
             return {
-                "ingestion_schedule": ingestion_batches,
+                "ingestion_schedule": ingestion_batch,
                 "status": "success",
                 "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
             }
