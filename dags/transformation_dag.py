@@ -27,6 +27,7 @@ load_complete_asset = Asset(
 @dag(
     dag_id="run_dbt_models",
     schedule=[load_complete_asset],
+    catchup=False,
     tags=["Transformation", "Scheduling", "Snowflake", "dbt"]
 )
 def run_dbt_models_dag():

@@ -26,6 +26,7 @@ ingestion_scheduling_asset = Asset(
 @dag(
     dag_id="mars_rover_photos_ingestion",
     schedule=[ingestion_scheduling_asset],
+    catchup=False,
     tags=["Ingestion", "Photos", "MinIO"]
 )
 def mars_rover_photos_ingestion_dag():

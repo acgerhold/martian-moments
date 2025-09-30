@@ -26,6 +26,7 @@ minio_events_asset = Asset(
 @dag(
     dag_id="load_to_snowflake",
     schedule=[minio_events_asset],
+    catchup=False,
     tags=["Loading", "Kafka", "MinIO", "Snowflake"]
 )
 def load_photos_to_snowflake_dag():

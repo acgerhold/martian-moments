@@ -71,26 +71,32 @@ def fetch_next_ingestion_batch(run_dbt_models_success, logger):
         snowflake_connection = get_snowflake_connection()
         snowflake_cursor = snowflake_connection.cursor()
 
+        ingestion_batch = {"tasks": [], "sol_range": []}
+
         try: 
             snowflake_cursor.execute(f"USE SCHEMA {os.getenv('SNOWFLAKE_DATABASE')}.{os.getenv('SNOWFLAKE_SCHEMA_SILVER')};")
             table_results = snowflake_cursor.execute(f"SELECT rover_name, sol FROM VALIDATION_PHOTO_GAPS WHERE validation_status = 'MISSING_SOL' ORDER BY sol LIMIT 73;").fetchall()
             columns = [desc[0] for desc in snowflake_cursor.description]
             table_results_dataframe = pd.DataFrame(table_results, columns=columns)
-            logger.info(f"Fetched results from INGESTION_PLANNING - Results: {table_results_dataframe}")
-        except Exception as e:
-            logger.error(f"Error fetching results from INGESTION_PLANNING - Error: {e}")
+            logger.info(f"Fetched results from VALIDATION_PHOTO_GAPS - Results: {table_results_dataframe}")
 
-        try:
-            sol_range = list(range(table_results_dataframe['sol'].min(), table_results_dataframe['sol'].max()))
-            ingestion_tasks = []
-            for _, row in table_results_dataframe.iterrows():
-                    task = {
-                        "rover_name": row['ROVER_NAME'],
-                        "sol": row['SOL'],
-                    }
-                    ingestion_tasks.append(task)
-        
-            ingestion_batch = {"tasks": ingestion_tasks, "sol_range": sol_range}
+            if not table_results_dataframe.empty:
+                    sol_range = list(range(table_results_dataframe['SOL'].min(), table_results_dataframe['SOL'].max() + 1))
+                    ingestion_tasks = []
+                    
+                    for _, row in table_results_dataframe.iterrows():
+                        task = {
+                            "rover_name": row['ROVER_NAME'],
+                            "sol": row['SOL'],
+                        }
+                        ingestion_tasks.append(task)
+                
+                    ingestion_batch = {"tasks": ingestion_tasks, "sol_range": sol_range}
+                    logger.info(f"Created ingestion batch with {len(ingestion_tasks)} tasks, sol range: {sol_range[0]} to {sol_range[-1]}")
+            else:
+                logger.info("No missing sols found - all data up to date!")
+        except Exception as e:
+            logger.error(f"Error fetching results from VALIDATION_PHOTO_GAPS - Error: {e}")
 
         finally:
             snowflake_cursor.close()
