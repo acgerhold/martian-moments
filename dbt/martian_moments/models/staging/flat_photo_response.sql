@@ -19,6 +19,7 @@ SELECT
     photo.value:camera.full_name::string as camera_full_name,
     photo.value:img_src::string as img_src,
     photo.value:id::int as image_id,
+    rpr.filename as filename,
     rpr.ingestion_date as ingestion_date   
 FROM 
     {{ source('MARS_BRONZE', 'RAW_PHOTO_RESPONSE') }} rpr,
