@@ -18,4 +18,4 @@ GROUP BY
     sol,
     rover_id,
     earth_date,
-    img_src
+    img_src 
