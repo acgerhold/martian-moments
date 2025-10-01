@@ -6,7 +6,7 @@ sys.path.append('/opt/airflow')
 from src.config import LOAD_COMPLETE_TOPIC, GOLD_TAG, INGESTION_SCHEDULING_TOPIC
 from src.utils.kafka import parse_kafka_message, produce_kafka_message
 from src.utils.dbt import run_dbt_models_by_tag
-from src.utils.snowflake import fetch_next_ingestion_batch
+from src.utils.snowflake import fetch_next_ingestion_batch, generate_ingestion_batch_tasks
 from src.utils.logger import setup_logger
 
 
@@ -41,18 +41,25 @@ def run_dbt_models_dag():
     @task
     def fetch_next_ingestion_batch_task(run_dbt_models_success):
         logger = setup_logger('fetch_next_ingestion_batch_task', 'transformation_dag.log', 'transformation')
-        ingestion_schedule_message = fetch_next_ingestion_batch(run_dbt_models_success, logger)
-        return ingestion_schedule_message
+        ingestion_batch_dataframe = fetch_next_ingestion_batch(run_dbt_models_success, logger)
+        return ingestion_batch_dataframe
+    
+    @task
+    def generate_tasks_for_batch_task(ingestion_batch_dataframe):
+        logger = setup_logger('generate_tasks_for_batch_task', 'transformation_dag.log', 'transformation')
+        ingestion_batch_tasks = generate_ingestion_batch_tasks(ingestion_batch_dataframe, logger)
+        return ingestion_batch_tasks
 
     @task
-    def produce_ingestion_schedule_message_task(ingestion_schedule_message):
+    def produce_ingestion_batch_message_task(ingestion_batch_tasks):
         logger = setup_logger('produce_ingestion_schedule_task', 'transformation_dag.log', 'transformation')
-        produce_kafka_message(INGESTION_SCHEDULING_TOPIC, ingestion_schedule_message, logger)
+        produce_kafka_message(INGESTION_SCHEDULING_TOPIC, ingestion_batch_tasks, logger)
 
     run_dbt_models_success = run_dbt_transformations_task()
-    ingestion_schedule_message = fetch_next_ingestion_batch_task(run_dbt_models_success)
-    produce_ingestion_schedule_message_task(ingestion_schedule_message)
+    ingestion_batch_dataframe = fetch_next_ingestion_batch_task(run_dbt_models_success)
+    ingestion_batch_tasks = generate_tasks_for_batch_task(ingestion_batch_dataframe)
+    produce_ingestion_batch_message_task(ingestion_batch_tasks)
     
-    run_dbt_models_success >> ingestion_schedule_message
+    run_dbt_models_success >> ingestion_batch_dataframe
 
 dag = run_dbt_models_dag()

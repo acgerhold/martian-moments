@@ -54,4 +54,4 @@ validation_results AS (
         actual_sol_data a ON m.rover_name = a.rover_name AND m.sol = a.sol
 )
 
-SELECT * FROM validation_results WHERE validation_status = 'MISSING_SOL' ORDER BY sol LIMIT 73
+SELECT * FROM validation_results

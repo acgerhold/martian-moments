@@ -1,6 +1,6 @@
 {{ config(
     materialized='incremental',
-    unique_key='image_id',
+    unique_key=['rover_id', 'sol', 'image_id', 'camera_id'],
     incremental_strategy='append',
     cluster_by=['rover_id', 'sol', 'earth_date'],
     tags='flatten'

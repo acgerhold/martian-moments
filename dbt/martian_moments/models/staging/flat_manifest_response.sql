@@ -6,7 +6,7 @@
     tags='flatten'
 ) }}
 
-SELECT
+SELECT DISTINCT
     manifest.value:name::string as rover_name,
     manifest.value:status::string as status,
     manifest.value:max_sol::int as max_sol,
@@ -19,6 +19,10 @@ SELECT
 FROM 
     {{ source('MARS_BRONZE', 'RAW_MANIFEST_RESPONSE') }} rmr,
     LATERAL FLATTEN(input => parse_json(rmr.manifests)) as manifest
-{% if is_incremental() %}
-    WHERE rmr.ingestion_date > (SELECT MAX(ingestion_date) FROM {{ this }})
-{% endif %}
+WHERE rmr.ingestion_date = (
+    SELECT MAX(ingestion_date) 
+    FROM {{ source('MARS_BRONZE', 'RAW_MANIFEST_RESPONSE') }}
+    {% if is_incremental() %}
+    WHERE ingestion_date > (SELECT MAX(ingestion_date) FROM {{ this }})
+    {% endif %}
+)
