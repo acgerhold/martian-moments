@@ -1,8 +1,8 @@
 {{ config(
     materialized='incremental',
-    unique_key='name',
+    unique_key='rover_name',
     incremental_strategy='merge',
-    cluster_by='name',
+    cluster_by='rover_name',
     tags='aggregate'
 ) }}
 

@@ -2,189 +2,229 @@ version: 2
 
 sources:
   - name: MARS_BRONZE
-    description: "Bronze layer tables from Snowflake"
+    description: "Bronze layer tables containing raw data returned from NASA APIs, preserving original JSON structure."
     database: MARS_DB
     schema: MARS_BRONZE
     tables:
       - name: RAW_PHOTO_RESPONSE
-        description: "Raw photo response data from NASA API"
+        description: "Batched responses from NASA Mars Rover Photos API. Contains image metadata and URLs for timelapse video creation and analytics."
         columns:
-          - name: photos
-            description: "Source JSON data"
+          - name: PHOTOS
+            description: "JSON array of photo responses from the Mars Rover Photos API endpoint."
             tests:
               - not_null
-              - unique
       - name: RAW_COORDINATE_RESPONSE
-        description: "Raw coordinate response data from NASA geoJSON"
+        description: "Coordinate tracking data from NASA MMGIS for Perseverance and Curiosity rovers. Each response contains a rover's complete mission traversal path."
         columns: 
-          - name: coordinates
-            description: "Source JSON data"
+          - name: COORDINATES
+            description: "JSON array of coordinate responses from NASA MMGIS path tracking endpoints."
             tests:
               - not_null
-              - unique
       - name: RAW_MANIFEST_RESPONSE
-        description: "Raw manifest response data from NASA API"
+        description: "Mission manifest responses from NASA Mars Rover Manifest API. Contains high-level mission statistics and metadata for each rover."
         columns:
-        - name: manifests
-          description: "Source JSON data"
+        - name: MANIFESTS
+          description: "JSON array of mission manifest responses from the Mars Rover Manifest API endpoint."
           tests:
             - not_null
-            - unique
   - name: MARS_SILVER
-    description: "Silver layer tables from Snowflake"
+    description: "Silver layer views and incremental tables containing cleaned, normalized, and flattened data from Bronze schema tables."
     database: MARS_DB
     schema: MARS_SILVER
     tables:
       - name: FLAT_PHOTO_RESPONSE
-        description: "Flattened 'photos' column from RAW_PHOTO_RESPONSE"
+        description: "Incremental table containing flattened photo data from RAW_PHOTO_RESPONSE with individual photo records."
         columns:
-          - name: image_id
-            description: "A photo's unique ID"
-            tests:
-              - not_null
-              - unique
-      - name: FACT_PHOTOS
-        description: "Main fact view of images"
-        columns:
-          - name: image_id
-            description: "A photo's unique ID"
-            tests:
-              - not_null
-              - unique
-      - name: DIM_ROVERS
-        description: "Rover dimensions"
-        columns:
-          - name: rover_id
-            description: "A rovers's unique ID"
-            tests:
-              - not_null
-              - unique
-      - name: DIM_CAMERAS
-        description: "Camera dimensions"
-        columns:
-          - name: camera_id
-            description: "A camera's unique ID"
+          - name: IMAGE_ID
+            description: "Unique identifier for each photo taken by Mars rovers."
             tests:
               - not_null
               - unique
       - name: FLAT_COORDINATE_RESPONSE
-        description: "Flattened 'coordinates' column from RAW_COORDINATE_RESPONSE"
+        description: "Incremental table containing flattened coordinate data from RAW_COORDINATE_RESPONSE with individual path segments."
         columns:
-          - name: rover_name
-            description: "Name of rover for coordinates traveled"
+          - name: ROVER_NAME
+            description: "Name of the Mars rover that traveled the coordinate path."
             tests:
               - not_null
-          - name: sol
-            description: "Sol number of coordinates traveled for a rover"
+          - name: SOL
+            description: "Sol (Mars day) when the coordinate path was traveled."
             tests:
               - not_null
+      - name: FLAT_MANIFEST_RESPONSE
+        description: "Incremental table containing flattened manifest data from RAW_MANIFEST_RESPONSE with rover mission summaries."
+        columns:
+          - name: ROVER_NAME
+            description: "Name of the Mars rover for mission manifest data."
+            tests:
+              - not_null
+              - unique
+      - name: FACT_PHOTOS
+        description: "Fact table view containing normalized photo data with foreign key relationships to dimension tables."
+        columns:
+          - name: IMAGE_ID
+            description: "Unique identifier for each photo (primary key)."
+            tests:
+              - not_null
+              - unique
       - name: FACT_PATH
-        description: "Main fact view of rover pathing"
+        description: "Fact table view containing rover traversal path data with movement segments and distance calculations."
         columns:
-          - name: path_id
-            description: "Composite key of rover_id and sol"
+          - name: PATH_ID
+            description: "Unique identifier for each path segment (primary key). Generated from rover_id and sol."
+            tests:
+              - not_null
+              - unique
+      - name: DIM_ROVERS
+        description: "Dimension table view containing Mars rover attributes and mission metadata."
+        columns:
+          - name: ROVER_ID
+            description: "Unique identifier for each Mars rover (primary key)."
+            tests:
+              - not_null
+              - unique
+      - name: DIM_CAMERAS
+        description: "Dimension table view containing camera specifications and categorizations for all rover instruments."
+        columns:
+          - name: CAMERA_ID
+            description: "Unique identifier for each camera instrument (primary key)."
             tests:
               - not_null
               - unique
       - name: DIM_COORDINATE
-        description: "Coordinate dimensions"
+        description: "Dimension table view containing coordinate reference data and location metadata."
         columns:
-          - name: coordinate_id
-            description: "Composite key of a coordinate's rover, sol, & sequence number"
+          - name: COORDINATE_ID
+            description: "Unique identifier for each coordinate point. Composite key of rover_id, sol, and sequence number."
             tests:
               - not_null
               - unique
-      - name: FLAT_MANIFEST_RESPONSE
-        description: "Flattened 'manifests' column from RAW_MANIFEST_RESPONSE"
+      - name: VALIDATION_PHOTO_GAPS
+        description: "Data quality view identifying discrepancies between manifest data and actual photo records at the sol level."
         columns:
-          - name: rover_name
-            description: "Name of rover"
-            tests:
-              - not_null
-              - unique
-      - name: VALIDATION_CAMERA_GAPS
-        description: "View showing difference between manifest data and photos data for individual sol records"
-        columns:
-        - name: rover_name
-          description: "Name of rover"
+        - name: ROVER_NAME
+          description: "Name of the Mars rover being validated for data gaps."
           tests:
             - not_null
       - name: VALIDATION_ROVER_GAPS
-        description: "View showing difference between manifest data and photos data for total sol records"
+        description: "Data quality view identifying discrepancies between manifest data and actual photo records at the rover level."
         columns:
-        - name: rover_name
-          description: "Name of rover"
+        - name: ROVER_NAME
+          description: "Name of the Mars rover being validated for data completeness."
           tests:
             - not_null
-      - name: INGESTION_PLANNING
-        description: "View showing a summary of validation camera/rover gaps and a schedule for next ingestion batch."
-        columns:
-        - name: rover_name
-          description: "Name of rover"
-          tests:
-            - not_null
+  - name: MARS_GOLD
+    description: "Gold layer incremental tables containing analysis-ready datasets from joined silver views."
+    database: MARS_DB
+    schema: MARS_GOLD
+    tables:
+      - name: PHOTO_SUMMARY
+        description: "Breakdown of the number of photos taken and number of cameras used by sol. Used in validation_photo_gaps to compare with manifest data."
+      - name: ROVER_SUMMARY
+        description: "Breakdown of the total photos, max sol/earth date, and mission status of a rover. Used in validation_rover_gaps to compare with manifest data"
 
 models:
-  - name: flat_photo_response
-    description: "Flattened photo response data with parsed JSON"
+  - name: FLAT_PHOTO_RESPONSE
+    description: "Incremental table containing flattened photo data from RAW_PHOTO_RESPONSE with individual photo records and metadata."
     columns:
-      - name: image_id
-        description: "Unique identifier for each photo"
+      - name: IMAGE_ID
+        description: "Unique identifier for each photo taken by Mars rovers (primary key)."
         tests:
           - not_null
           - unique
-      - name: rover_name
-        description: "Name of the Mars rover"
+      - name: ROVER_NAME
+        description: "Name of the Mars rover that captured the photo."
         tests:
           - not_null
           - accepted_values:
-              values: ['Perseverance', 'Curiosity', 'Opportunity', 'Spirit', 'Sojourner']
-      - name: sol
-        description: "Sol (Mars day) when photo was taken"
+              values: ['Perseverance', 'Curiosity', 'Opportunity', 'Spirit']
+      - name: SOL
+        description: "Sol (Mars day) when the photo was captured, starting from rover landing day."
         tests:
           - not_null
           - dbt_utils.expression_is_true:
               expression: ">= 0"
-      - name: earth_date
-        description: "Earth date when photo was taken"
+      - name: EARTH_DATE
+        description: "Corresponding Earth date when the photo was captured."
         tests:
           - not_null
-      - name: img_src
-        description: "URL to the image"
+      - name: IMG_SRC
+        description: "Direct HTTP URL link to the full-resolution image file."
         tests:
           - not_null
           - dbt_utils.expression_is_true:
               expression: "LIKE 'http%'"
-      - name: camera_name
-        description: "Camera name abbreviation"
+      - name: CAMERA_NAME
+        description: "Abbreviated name of the camera instrument that captured the photo."
         tests:
           - not_null
-  - name: flat_coordinate_response
-    description: "Flattened coordinate response data with parsed json"
+  - name: FLAT_COORDINATE_RESPONSE
+    description: "Incremental table containing flattened coordinate data from RAW_COORDINATE_RESPONSE with rover traversal path segments."
     columns:
-      - name: rover_name
-        description: "Name of rover that traveled set of coordinates"
+      - name: ROVER_NAME
+        description: "Name of the Mars rover that traveled the coordinate path segment."
         tests:
           - not_null
-      - name: sol
-        description: "Sol a rover traveled a set of coordinates"
+          - accepted_values:
+              values: ['Perseverance', 'Curiosity', 'Opportunity', 'Spirit']
+      - name: SOL
+        description: "Sol (Mars day) when the rover traveled this coordinate path segment."
         tests:
           - not_null
-      - name: to_rmc
+      - name: TO_RMC
+        description: "Ending reference point coordinate for the traversal path segment."
         tests:
           - not_null
-      - name: from_rmc
+      - name: FROM_RMC
+        description: "Starting reference point coordinate for the traversal path segment."
         tests:
           - not_null
-      - name: sclk_end
-        description: "Ending time for path (space clock)"
+      - name: SCLK_END
+        description: "Spacecraft clock ending timestamp for the path traversal segment."
         tests:
           - not_null
-      - name: sclk_start
-        description: "Starting time for path (space clock)"
+      - name: SCLK_START
+        description: "Spacecraft clock starting timestamp for the path traversal segment."
         tests:
           - not_null
-      - name: length
-        description: "Length of path traveled (meters)"
+      - name: LENGTH
+        description: "Distance traveled in meters for this path segment."
         tests:
           - not_null
+  - name: FLAT_MANIFEST_RESPONSE
+    description: "Incremental table containing flattened manifest data from RAW_MANIFEST_RESPONSE with rover mission summary statistics."
+    columns:
+      - name: ROVER_NAME
+        description: "Name of the Mars rover for mission manifest data."
+        tests:
+          - not_null
+          - unique
+      - name: STATUS
+        description: "Current mission status of the rover: 'active' for ongoing missions or 'complete' for concluded missions."
+        tests:
+          - not_null
+      - name: MAX_SOL
+        description: "Highest sol (Mars day) number reached by the rover in its mission."
+        tests:
+          - not_null
+      - name: MAX_DATE
+        description: "Most recent Earth date of rover activity and data collection."
+        tests:
+          - not_null
+      - name: TOTAL_PHOTOS
+        description: "Total count of photos captured by the rover throughout its entire mission."
+        tests:
+          - not_null
+      - name: LAUNCH_DATE
+        description: "Earth date when the rover mission was launched from Earth."
+        tests:
+          - not_null
+      - name: LANDING_DATE
+        description: "Earth date when the rover successfully landed on Mars surface."
+        tests:
+          - not_null
+      - name: PHOTOS
+        description: "Nested JSON data containing detailed photo count statistics for each individual sol of the rover mission."
+        tests:
+          - not_null
+        

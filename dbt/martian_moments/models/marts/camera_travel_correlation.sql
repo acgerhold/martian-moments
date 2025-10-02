@@ -1,8 +1,8 @@
 {{ config(
     materialized='incremental',
-    unique_key=['name', 'sol', 'image'],
+    unique_key=['name', 'sol', 'camera_full_name', 'travel_time_start', 'image'],
     incremental_strategy='merge',
-    cluster_by=['name', 'sol', 'image'],
+    cluster_by=['name', 'sol', 'camera_full_name', 'travel_time_start', 'image'],
     tags='aggregate'
 ) }}
 

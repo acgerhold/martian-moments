@@ -4,7 +4,6 @@ import pandas as pd
 from dotenv import load_dotenv
 from datetime import datetime, timezone
 
-
 from src.config import PHOTOS_TABLE_NAME, COORDINATES_TABLE_NAME, MANIFESTS_TABLE_NAME
 
 load_dotenv()
@@ -64,6 +63,7 @@ def copy_file_to_snowflake(tmp_jsonl_staging_path, logger):
             "status": "success",
             "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
         } 
+ 
 
 def fetch_next_ingestion_batch(run_dbt_models_success, logger):
     if run_dbt_models_success:
@@ -72,32 +72,42 @@ def fetch_next_ingestion_batch(run_dbt_models_success, logger):
         snowflake_cursor = snowflake_connection.cursor()
 
         try: 
-            snowflake_cursor.execute(f"USE SCHEMA {os.getenv('SNOWFLAKE_DATABASE')}.{os.getenv('SNOWFLAKE_SCHEMA_SILVER')};")
-            table_results = snowflake_cursor.execute(f"SELECT * FROM INGESTION_PLANNING;").fetchall()
+            snowflake_cursor.execute(f"USE SCHEMA {os.getenv('SNOWFLAKE_DATABASE')}.{os.getenv('SNOWFLAKE_SCHEMA_SILVER')};")          
+            rows = snowflake_cursor.execute(f"SELECT rover_name, sol FROM VALIDATION_PHOTO_GAPS WHERE validation_status = 'MISSING_SOL' ORDER BY sol").fetchall()
             columns = [desc[0] for desc in snowflake_cursor.description]
-            table_results_dataframe = pd.DataFrame(table_results, columns=columns)
-            logger.info(f"Fetched results from INGESTION_PLANNING - Results: {table_results_dataframe}")
+            ingestion_batch_dataframe = pd.DataFrame(rows, columns=columns)
+
+            logger.info(f"Fetched ingestion batch - Results: {ingestion_batch_dataframe}")
+            return ingestion_batch_dataframe
         except Exception as e:
-            logger.error(f"Error fetching results from INGESTION_PLANNING - Error: {e}")
-
-        try:
-            ingestion_batches = []
-            for _, row in table_results_dataframe.iterrows():
-                if not row['UP_TO_DATE']:
-                    batch = {
-                        "rover_name": row['ROVER_NAME'],
-                        "sol_start": row['START_SOL'],
-                        "sol_end": row['END_SOL']
-                    }
-                    ingestion_batches.append(batch)
-
+            logger.error(f"Error fetching ingestion batch - Error: {e}")
         finally:
             snowflake_cursor.close()
             snowflake_connection.close()
-            
-            logger.info(f"Fetched next ingestion batch - Batch: {ingestion_batches}")
-            return {
-                "ingestion_schedule": ingestion_batches,
-                "status": "success",
-                "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+    else:
+        logger.error("Unsuccessful dbt run, cancelling next ingestion batch")
+        
+def generate_ingestion_batch_tasks(ingestion_batch_dataframe, logger):
+    if not ingestion_batch_dataframe.empty:
+        logger.info("Attempting to generate tasks from ingestion batch")
+        ingestion_batch = {"tasks": [], "sol_range": []}
+        sol_range = list(range(ingestion_batch_dataframe['SOL'].min(), ingestion_batch_dataframe['SOL'].max() + 1))
+
+        ingestion_tasks = []
+        for _, row in ingestion_batch_dataframe.iterrows():
+            task = {
+                "rover_name": row['ROVER_NAME'],
+                "sol": row['SOL'],
             }
+            ingestion_tasks.append(task)
+    
+        ingestion_batch = {"tasks": ingestion_tasks, "sol_range": sol_range}
+
+        logger.info(f"Generated ingestion batch tasks - Tasks: {len(ingestion_tasks)}, Sol Range: {sol_range[0]} to {sol_range[-1]}")
+        return {
+            "ingestion_schedule": ingestion_batch,
+            "status": "success",
+            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+        }
+    else:
+        logger.info("No tasks found, photos data up-to-date")
