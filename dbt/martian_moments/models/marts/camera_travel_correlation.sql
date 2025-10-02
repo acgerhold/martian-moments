@@ -17,6 +17,9 @@ WITH photo_with_time AS (
         {{ source('MARS_SILVER', 'FACT_PHOTOS') }} fph
     WHERE 
         fph.rover_id = 8
+        {% if is_incremental() %}
+        AND fph.ingestion_date > (SELECT MAX(ingestion_date) FROM {{ this }})
+        {% endif %}
 )
 SELECT
     dro.rover_name AS name,
