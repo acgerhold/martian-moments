@@ -1,7 +1,7 @@
 {{ config(
     materialized='incremental',
     unique_key=['name', 'sol', 'travel_distance'],
-    incremental_strategy='merge',
+    incremental_strategy='append',
     cluster_by=['name', 'sol', 'travel_distance'],
     tags='aggregate'
 ) }}

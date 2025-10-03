@@ -1,7 +1,7 @@
 {{ config(
     materialized='incremental',
     unique_key=['name', 'sol', 'camera_full_name', 'travel_time_start', 'image'],
-    incremental_strategy='merge',
+    incremental_strategy='append',
     cluster_by=['name', 'sol', 'camera_full_name', 'travel_time_start', 'image'],
     tags='aggregate'
 ) }}
@@ -18,7 +18,7 @@ WITH photo_with_time AS (
     WHERE 
         fph.rover_id = 8
         {% if is_incremental() %}
-        AND fph.ingestion_date > (SELECT MAX(ingestion_date) FROM {{ this }})
+            AND fph.fph_ingestion_date > (SELECT MAX(ingestion_date) FROM {{ this }})
         {% endif %}
 )
 SELECT

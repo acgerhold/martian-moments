@@ -1,7 +1,7 @@
 {{ config(
     materialized='incremental',
     unique_key='rover_name',
-    incremental_strategy='merge',
+    incremental_strategy='append',
     cluster_by='rover_name',
     tags='aggregate'
 ) }}
