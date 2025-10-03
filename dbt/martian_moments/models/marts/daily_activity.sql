@@ -6,6 +6,13 @@
     tags='aggregate'
 ) }}
 
+WITH max_ingestion AS (
+    SELECT 
+        MAX(ingestion_date) AS max_ingestion_date
+    FROM
+        {{ source('MARS_SILVER', 'FACT_PATH') }} fpa
+)
+
 SELECT
     dro.rover_name AS name,
     COALESCE(fpa.sol, fph.sol) AS sol,
@@ -23,6 +30,10 @@ LEFT JOIN
     {{ source('MARS_SILVER', 'FACT_PHOTOS') }} fph ON fpa.rover_id = fph.rover_id AND fpa.sol = fph.sol
 LEFT JOIN
     {{ source('MARS_SILVER', 'DIM_CAMERAS') }} dca ON fph.camera_id = dca.camera_id
+{% if is_incremental() %}
+WHERE 
+    fpa.ingestion_date > (SELECT max_ingestion_date FROM max_ingestion)
+{% endif %}
 GROUP BY 
     dro.rover_name, 
     COALESCE(fpa.sol, fph.sol), 

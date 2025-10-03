@@ -6,7 +6,14 @@
     tags='aggregate'
 ) }}
 
-WITH photo_with_time AS (
+WITH max_ingestion AS (
+    SELECT 
+        MAX(ingestion_date) AS max_ingestion_date
+    FROM
+        {{ source('MARS_SILVER', 'FACT_PHOTOS') }} fph
+),
+
+photo_with_time AS (
     SELECT
         fph.rover_id,
         fph.sol,
@@ -18,7 +25,7 @@ WITH photo_with_time AS (
     WHERE 
         fph.rover_id = 8
         {% if is_incremental() %}
-            AND fph.fph_ingestion_date > (SELECT MAX(ingestion_date) FROM {{ this }})
+            AND fph.ingestion_date > (SELECT max_ingestion_date FROM max_ingestion)
         {% endif %}
 )
 SELECT
