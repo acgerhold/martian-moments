@@ -1,12 +1,19 @@
 {{ config(
     materialized='incremental',
     unique_key=['name', 'sol', 'camera_full_name', 'travel_time_start', 'image'],
-    incremental_strategy='merge',
+    incremental_strategy='append',
     cluster_by=['name', 'sol', 'camera_full_name', 'travel_time_start', 'image'],
     tags='aggregate'
 ) }}
 
-WITH photo_with_time AS (
+WITH max_ingestion AS (
+    SELECT 
+        MAX(ingestion_date) AS max_ingestion_date
+    FROM
+        {{ source('MARS_SILVER', 'FACT_PHOTOS') }} fph
+),
+
+photo_with_time AS (
     SELECT
         fph.rover_id,
         fph.sol,
@@ -17,6 +24,9 @@ WITH photo_with_time AS (
         {{ source('MARS_SILVER', 'FACT_PHOTOS') }} fph
     WHERE 
         fph.rover_id = 8
+        {% if is_incremental() %}
+            AND fph.ingestion_date > (SELECT max_ingestion_date FROM max_ingestion)
+        {% endif %}
 )
 SELECT
     dro.rover_name AS name,

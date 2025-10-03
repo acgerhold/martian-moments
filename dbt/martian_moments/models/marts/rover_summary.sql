@@ -6,6 +6,13 @@
     tags='aggregate'
 ) }}
 
+WITH max_ingestion AS (
+    SELECT 
+        MAX(ingestion_date) AS max_ingestion_date
+    FROM
+        {{ source('MARS_SILVER', 'FACT_PHOTOS') }} fph
+)
+
 SELECT
     dro.rover_name,
     dro.rover_status,
@@ -18,6 +25,10 @@ FROM
     {{ source('MARS_SILVER', 'FACT_PHOTOS') }} fph
 JOIN 
     {{ source('MARS_SILVER', 'DIM_ROVERS') }} dro ON fph.rover_id = dro.rover_id
+{% if is_incremental() %}
+WHERE 
+    fph.ingestion_date > (SELECT max_ingestion_date FROM max_ingestion)
+{% endif %}
 GROUP BY
     dro.rover_name,
     dro.rover_status,
