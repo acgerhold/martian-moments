@@ -19,12 +19,6 @@ SELECT
 FROM 
     {{ source('MARS_BRONZE', 'RAW_COORDINATE_RESPONSE') }} rcr,
     LATERAL FLATTEN(input => parse_json(coordinates)) as coordinate
-WHERE rcr.ingestion_date = (
-    SELECT 
-        MAX(ingestion_date) 
-    FROM 
-        {{ source('MARS_BRONZE', 'RAW_COORDINATE_RESPONSE') }}
-    {% if is_incremental() %}
-        WHERE rcr.ingestion_date > (SELECT MAX(ingestion_date) FROM {{ this }})
-    {% endif %}
-)
+{% if is_incremental() %}
+    WHERE rcr.ingestion_date > (SELECT MAX(ingestion_date) FROM {{ this }})
+{% endif %}
