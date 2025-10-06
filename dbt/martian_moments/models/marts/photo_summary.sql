@@ -10,9 +10,9 @@ SELECT
     dro.rover_name,
     fph.earth_date,
     fph.sol,
-    MAX(fph.ingestion_date) as ingestion_date,
     COUNT(DISTINCT fph.camera_id) AS cameras_used,
-    COUNT(fph.image_id) AS total_photos
+    COUNT(fph.image_id) AS total_photos,
+    MAX(fph.ingestion_date) as ingestion_date,
 FROM 
     {{ source('MARS_SILVER', 'FACT_PHOTOS') }} fph
 JOIN 
