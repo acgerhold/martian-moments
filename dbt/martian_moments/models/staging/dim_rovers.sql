@@ -17,7 +17,6 @@ SELECT
     landing_date,
     max_sol,
     max_date,
-    total_photos,
-    ingestion_date
+    total_photos
 FROM 
     {{ source('MARS_SILVER', 'FLAT_MANIFEST_RESPONSE') }}
