@@ -10,6 +10,7 @@ SELECT
     dro.rover_name,
     fph.earth_date,
     fph.sol,
+    MAX(fph.ingestion_date) as ingestion_date,
     COUNT(DISTINCT fph.camera_id) AS cameras_used,
     COUNT(fph.image_id) AS total_photos
 FROM 
@@ -18,7 +19,7 @@ JOIN
     {{ source('MARS_SILVER', 'DIM_ROVERS') }} dro ON fph.rover_id = dro.rover_id
 {% if is_incremental() %}
 WHERE 
-    fph.ingestion_date = (SELECT MAX(ingestion_date) FROM {{ source('MARS_SILVER', 'FACT_PHOTOS') }})
+    fph.ingestion_date > (SELECT MAX(ingestion_date) FROM {{ this }})
 {% endif %}
 GROUP BY 
     dro.rover_name, 
