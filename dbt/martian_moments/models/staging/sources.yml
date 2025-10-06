@@ -70,8 +70,8 @@ sources:
       - name: FACT_PATH
         description: "Fact table view containing rover traversal path data with movement segments and distance calculations."
         columns:
-          - name: PATH_ID
-            description: "Unique identifier for each path segment (primary key). Generated from rover_id and sol."
+          - name: SOL
+            description: "Unique identifier for each path segment (primary key)."
             tests:
               - not_null
               - unique
