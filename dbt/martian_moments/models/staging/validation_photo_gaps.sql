@@ -17,13 +17,17 @@ WITH manifest_sol_data AS (
 
 actual_sol_data AS (
     SELECT 
-        ps.rover_name,
-        ps.sol,
-        ps.earth_date,
-        ps.total_photos as actual_total_photos,
-        ps.cameras_used as actual_camera_count
+        fpr.rover_name,
+        fpr.sol,
+        fpr.earth_date,
+        COUNT(DISTINCT fpr.camera_id) AS actual_camera_count,
+        COUNT(fpr.image_id) AS actual_total_photos,
     FROM 
-        {{ source('MARS_GOLD', 'PHOTO_SUMMARY') }} ps
+        {{ source('MARS_SILVER', 'FLAT_PHOTO_RESPONSE') }} fpr
+    GROUP BY 
+        fpr.rover_name, 
+        fpr.earth_date, 
+        fpr.sol
 ),
 
 validation_results AS (
