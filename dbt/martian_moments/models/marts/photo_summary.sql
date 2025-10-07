@@ -1,27 +1,21 @@
 {{ config(
     materialized='incremental',
-    unique_key=['rover_name', 'earth_date', 'sol'],
+    unique_key=['rover_name', 'max_sol'],
     incremental_strategy='append',
-    cluster_by=['rover_name', 'earth_date', 'sol'],
+    cluster_by=['rover_name', 'max_sol'],
     tags='aggregate'
 ) }}
 
 SELECT 
-    dro.rover_name,
-    fph.earth_date,
-    fph.sol,
-    COUNT(DISTINCT fph.camera_id) AS cameras_used,
-    COUNT(fph.image_id) AS total_photos,
-    MAX(fph.ingestion_date) as ingestion_date,
+    fmr.rover_name,
+    fmr.status,
+    fmr.launch_date,
+    fmr.landing_date,
+    fmr.max_sol,
+    fmr.max_date,
+    fmr.total_photos
 FROM 
-    {{ source('MARS_SILVER', 'FACT_PHOTOS') }} fph
-JOIN 
-    {{ source('MARS_SILVER', 'DIM_ROVERS') }} dro ON fph.rover_id = dro.rover_id
+    {{ source('MARS_SILVER', 'FLAT_MANIFEST_RESPONSE') }} fmr
 {% if is_incremental() %}
-WHERE 
-    fph.ingestion_date > (SELECT MAX(ingestion_date) FROM {{ this }})
+    WHERE fmr.ingestion_date > (SELECT MAX(ingestion_date) FROM {{ this }})
 {% endif %}
-GROUP BY 
-    dro.rover_name, 
-    fph.earth_date, 
-    fph.sol
