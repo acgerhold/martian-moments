@@ -7,15 +7,15 @@
 ) }}
 
 SELECT 
-    fmr.rover_name,
-    fmr.status,
-    fmr.launch_date,
-    fmr.landing_date,
-    fmr.max_sol,
-    fmr.max_date,
-    fmr.total_photos
+    dro.rover_name,
+    dro.status,
+    dro.launch_date,
+    dro.landing_date,
+    dro.max_sol,
+    dro.max_date,
+    dro.total_photos
 FROM 
-    {{ source('MARS_SILVER', 'FLAT_MANIFEST_RESPONSE') }} fmr
+    {{ source('MARS_SILVER', 'DIM_ROVERS') }} dro
 {% if is_incremental() %}
-    WHERE fmr.ingestion_date > (SELECT MAX(ingestion_date) FROM {{ this }})
+    WHERE dro.ingestion_date > (SELECT MAX(ingestion_date) FROM {{ this }})
 {% endif %}
