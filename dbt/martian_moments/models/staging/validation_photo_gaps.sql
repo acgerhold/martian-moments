@@ -56,6 +56,8 @@ validation_results AS (
         manifest_sol_data m
     LEFT JOIN 
         actual_sol_data a ON m.rover_name = a.rover_name AND m.sol = a.sol
+    WHERE
+        a.rover_name IS NULL
 )
 
 SELECT * FROM validation_results
