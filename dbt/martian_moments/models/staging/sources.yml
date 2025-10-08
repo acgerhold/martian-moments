@@ -59,6 +59,17 @@ sources:
             tests:
               - not_null
               - unique
+      - name: FLAT_MANIFEST_PHOTOS
+        description: "Incremental table containing flattened 'photos' data from FLAT_MANIFEST_RESPONSE with indiviudal sol summaries."
+        columns:
+          - name: ROVER_NAME
+            description: "Name of the Mars rover for mission manifest data."
+            tests:
+              - not_null
+          - name: SOL
+            description: "Sol (Mars day) of a rover's mission."
+            tests:
+              - not_null
       - name: FACT_PHOTOS
         description: "Fact table view containing normalized photo data with foreign key relationships to dimension tables."
         columns:
