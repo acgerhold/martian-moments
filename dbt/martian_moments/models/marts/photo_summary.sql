@@ -13,7 +13,8 @@ SELECT
     dro.landing_date,
     dro.max_sol,
     dro.max_date,
-    dro.total_photos
+    dro.total_photos,
+    dro.ingestion_date
 FROM 
     {{ source('MARS_SILVER', 'DIM_ROVERS') }} dro
 {% if is_incremental() %}
