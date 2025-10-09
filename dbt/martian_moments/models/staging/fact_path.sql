@@ -19,7 +19,7 @@ SELECT
     sclk_end,
     CASE 
         WHEN length IS NULL OR length = 0 
-            THEN 'Stationary Day'
+            THEN 'Stationary'
         WHEN length < 5 
             THEN 'Minimal Movement'
         WHEN length < 20 
