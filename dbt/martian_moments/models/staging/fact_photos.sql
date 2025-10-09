@@ -5,7 +5,8 @@
 
 SELECT
     image_id,
-    camera_id,
+    camera_id AS nasa_camera_id,
+    camera_name,
     sol,
     rover_id,
     earth_date,
