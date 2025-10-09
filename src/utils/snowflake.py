@@ -4,7 +4,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from datetime import datetime, timezone
 
-from src.config import PHOTOS_TABLE_NAME, COORDINATES_TABLE_NAME, MANIFESTS_TABLE_NAME
+from src.config import PHOTOS_TABLE_NAME, COORDINATES_TABLE_NAME, MANIFESTS_TABLE_NAME, BATCH_SIZE
 
 load_dotenv()
 
@@ -73,7 +73,7 @@ def fetch_next_ingestion_batch(run_dbt_models_success, logger):
 
         try: 
             snowflake_cursor.execute(f"USE SCHEMA {os.getenv('SNOWFLAKE_DATABASE')}.{os.getenv('SNOWFLAKE_SCHEMA_SILVER')};")          
-            rows = snowflake_cursor.execute(f"SELECT rover_name, sol FROM VALIDATION_PHOTO_GAPS WHERE validation_status = 'MISSING_SOL' ORDER BY sol").fetchall()
+            rows = snowflake_cursor.execute(f"SELECT rover_name, sol FROM VALIDATION_PHOTO_GAPS LIMIT {BATCH_SIZE}").fetchall()
             columns = [desc[0] for desc in snowflake_cursor.description]
             ingestion_batch_dataframe = pd.DataFrame(rows, columns=columns)
 

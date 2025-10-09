@@ -4,14 +4,19 @@
 ) }}
 
 SELECT
-    ROW_NUMBER() OVER (ORDER BY rover_id, sol, sclk_start) AS path_id,
-    dro.rover_id,
-    fcr.sol,
-    fcr.from_rmc,
-    fcr.to_rmc,
-    fcr.length,
-    fcr.sclk_start,
-    fcr.sclk_end,
+    CASE rover_name
+        WHEN 'Perseverance' THEN 8
+        WHEN 'Spirit' THEN 7
+        WHEN 'Opportunity' THEN 6
+        WHEN 'Curiosity' THEN 5
+        ELSE 0
+    END AS rover_id,
+    sol,
+    from_rmc,
+    to_rmc,
+    COALESCE(fcr.length, 0) AS length,
+    sclk_start,
+    sclk_end,
     CASE 
         WHEN length IS NULL OR length = 0 
             THEN 'Stationary Day'
@@ -22,8 +27,6 @@ SELECT
         ELSE 
             'Long Travel'
     END as day_type,
-    fcr.ingestion_date as ingestion_date
+    ingestion_date as ingestion_date
 FROM 
     {{ source('MARS_SILVER', 'FLAT_COORDINATE_RESPONSE') }} fcr
-JOIN 
-    {{ source('MARS_SILVER', 'DIM_ROVERS') }} dro ON fcr.rover_name = dro.rover_name

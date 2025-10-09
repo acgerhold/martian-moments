@@ -11,8 +11,7 @@ SELECT
     sol,
     GET(coord.value, 0) AS longitude,
     GET(coord.value, 1) AS latitude,
-    GET(coord.value, 2) AS elevation,
-    fcr.ingestion_date AS ingestion_date
+    GET(coord.value, 2) AS elevation
 FROM 
     {{ source('MARS_SILVER', 'FLAT_COORDINATE_RESPONSE') }} fcr
 CROSS JOIN 
