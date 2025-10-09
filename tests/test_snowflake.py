@@ -576,10 +576,10 @@ def test_fetch_next_ingestion_batch_success_with_data(mock_logger):
         # Verify connection and cursor setup
         mock_connection.cursor.assert_called_once()
         
-        # Verify SQL commands - updated to match actual implementation (no LIMIT)
+        # Verify SQL commands - updated to match actual implementation with LIMIT
         expected_calls = [
             f"USE SCHEMA TEST_DB.SILVER;",
-            f"SELECT rover_name, sol FROM VALIDATION_PHOTO_GAPS WHERE validation_status = 'MISSING_SOL' ORDER BY sol"  # No LIMIT in actual code
+            f"SELECT rover_name, sol FROM VALIDATION_PHOTO_GAPS LIMIT 200"
         ]
         
         for i, expected_call in enumerate(expected_calls):
@@ -670,7 +670,7 @@ def test_fetch_next_ingestion_batch_sql_error(mock_logger):
         assert result is None
 
 def test_fetch_next_ingestion_batch_large_dataset(mock_logger):
-    """Test fetch with large dataset handling (no LIMIT in actual implementation)"""
+    """Test fetch with large dataset handling (with LIMIT in actual implementation)"""
     mock_connection = MagicMock()
     mock_cursor = MagicMock()
     mock_connection.cursor.return_value = mock_cursor
@@ -693,10 +693,10 @@ def test_fetch_next_ingestion_batch_large_dataset(mock_logger):
         
         result = fetch_next_ingestion_batch(True, mock_logger)
         
-        # Verify query does NOT have LIMIT (your actual implementation doesn't use LIMIT)
+        # Verify query has LIMIT (your actual implementation uses LIMIT)
         query_call = mock_cursor.execute.call_args_list[1][0][0]
-        assert "LIMIT" not in query_call  # Changed assertion
-        assert "SELECT rover_name, sol FROM VALIDATION_PHOTO_GAPS WHERE validation_status = 'MISSING_SOL' ORDER BY sol" == query_call
+        assert "LIMIT" in query_call  # Changed assertion
+        assert "SELECT rover_name, sol FROM VALIDATION_PHOTO_GAPS LIMIT 200" == query_call
         
         # Verify result contains exactly 73 rows
         assert isinstance(result, pd.DataFrame)

@@ -59,4 +59,4 @@ validation_results AS (
         a.rover_name IS NULL
 )
 
-SELECT * FROM validation_results
+SELECT * FROM validation_results ORDER BY sol
